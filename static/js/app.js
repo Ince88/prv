@@ -1136,10 +1136,9 @@ function showEmailPromptSuggestions() {
     `;
     
     // Generate buttons dynamically from emailPrompts array
-    const buttonsHTML = emailPrompts.map(prompt => {
-        const escapedText = prompt.text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const buttonsHTML = emailPrompts.map((prompt, index) => {
         return `
-            <button onclick="useEmailPrompt('${escapedText}')" style="
+            <button onclick="useEmailPromptByIndex(${index})" style="
                 padding: 12px 16px;
                 background: white;
                 color: #667eea;
@@ -1190,6 +1189,12 @@ function showEmailPromptSuggestions() {
     
     container.appendChild(suggestionsDiv);
     scrollToBottom();
+}
+
+function useEmailPromptByIndex(index) {
+    if (emailPrompts[index]) {
+        useEmailPrompt(emailPrompts[index].text);
+    }
 }
 
 function useEmailPrompt(promptText) {
