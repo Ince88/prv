@@ -6,6 +6,7 @@ Beautiful, modern web interface
 from flask import Flask, render_template, request, jsonify, session, Response
 from flask_cors import CORS
 from functools import wraps
+from werkzeug.middleware.proxy_fix import ProxyFix
 import openai
 import threading
 import secrets
@@ -21,6 +22,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
+
+# Fix for HTTPS behind proxy (Railway)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configuration
 IS_PRODUCTION = os.getenv('FLASK_ENV') == 'production'
