@@ -1613,22 +1613,31 @@ function renderPromptsList() {
             border: 2px solid #e9ecef;
         ">
             <div style="display: flex; gap: 12px; align-items: start;">
-                <input 
-                    type="text" 
-                    value="${prompt.icon}" 
-                    onchange="updatePromptIcon(${index}, this.value)"
-                    style="
-                        width: 50px;
-                        padding: 8px;
-                        border: 1px solid #dee2e6;
-                        border-radius: 8px;
-                        font-size: 20px;
-                        text-align: center;
-                    "
-                    placeholder="🎯"
-                />
+                <div style="position: relative;">
+                    <input 
+                        type="text" 
+                        id="icon-input-${index}"
+                        value="${prompt.icon}" 
+                        onchange="updatePromptIcon(${index}, this.value)"
+                        onclick="showEmojiPicker(${index})"
+                        readonly
+                        style="
+                            width: 50px;
+                            padding: 8px;
+                            border: 1px solid #dee2e6;
+                            border-radius: 8px;
+                            font-size: 20px;
+                            text-align: center;
+                            cursor: pointer;
+                        "
+                        placeholder="🎯"
+                        title="Kattints az emoji választásához"
+                    />
+                </div>
                 <textarea 
+                    id="prompt-text-${index}"
                     onchange="updatePromptText(${index}, this.value)"
+                    onfocus="if(this.value === 'Új prompt szövege...') this.value = ''"
                     style="
                         flex: 1;
                         padding: 8px 12px;
@@ -1691,6 +1700,118 @@ function deletePrompt(index) {
         emailPrompts.splice(index, 1);
         saveEmailPrompts();
         renderPromptsList();
+    }
+}
+
+function showEmojiPicker(index) {
+    // Common emojis for quick selection
+    const commonEmojis = [
+        '📧', '💰', '🔄', '📞', '📄', '⏰', '✅', '❌', '💡', '🎯',
+        '🚀', '📊', '💬', '📝', '🎉', '👍', '❤️', '⭐', '🔥', '📱',
+        '💻', '📈', '🎨', '🔔', '📌', '✨', '🌟', '🎁', '📮', '📬'
+    ];
+    
+    // Remove existing picker if any
+    const existingPicker = document.getElementById('emoji-picker');
+    if (existingPicker) {
+        existingPicker.remove();
+    }
+    
+    // Create emoji picker
+    const picker = document.createElement('div');
+    picker.id = 'emoji-picker';
+    picker.style.cssText = `
+        position: fixed;
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        z-index: 100001;
+        max-width: 300px;
+        border: 2px solid #667eea;
+    `;
+    
+    // Position near the icon input
+    const iconInput = document.getElementById('icon-input-' + index);
+    if (iconInput) {
+        const rect = iconInput.getBoundingClientRect();
+        picker.style.left = rect.left + 'px';
+        picker.style.top = (rect.bottom + 10) + 'px';
+    }
+    
+    picker.innerHTML = `
+        <div style="margin-bottom: 12px; color: #2c3e50; font-weight: 600; font-size: 14px;">
+            Válassz emojit:
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
+            ${commonEmojis.map(emoji => `
+                <button onclick="selectEmoji(${index}, '${emoji}')" style="
+                    padding: 8px;
+                    border: 1px solid #e9ecef;
+                    border-radius: 8px;
+                    background: white;
+                    cursor: pointer;
+                    font-size: 24px;
+                    transition: all 0.2s;
+                " onmouseover="this.style.background='#f8f9fa'; this.style.transform='scale(1.2)'" onmouseout="this.style.background='white'; this.style.transform='scale(1)'">
+                    ${emoji}
+                </button>
+            `).join('')}
+        </div>
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e9ecef;">
+            <input 
+                type="text" 
+                placeholder="Vagy írj be egy emojit..."
+                onkeyup="if(event.key === 'Enter') selectEmoji(${index}, this.value)"
+                style="
+                    width: 100%;
+                    padding: 8px 12px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    box-sizing: border-box;
+                "
+            />
+        </div>
+        <button onclick="closeEmojiPicker()" style="
+            margin-top: 8px;
+            width: 100%;
+            padding: 8px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #495057;
+        ">Bezárás</button>
+    `;
+    
+    document.body.appendChild(picker);
+    
+    // Close picker when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', function closeOnClickOutside(e) {
+            if (!picker.contains(e.target) && e.target !== iconInput) {
+                picker.remove();
+                document.removeEventListener('click', closeOnClickOutside);
+            }
+        });
+    }, 100);
+}
+
+function selectEmoji(index, emoji) {
+    if (emailPrompts[index]) {
+        emailPrompts[index].icon = emoji.trim();
+        saveEmailPrompts();
+        renderPromptsList();
+    }
+    closeEmojiPicker();
+}
+
+function closeEmojiPicker() {
+    const picker = document.getElementById('emoji-picker');
+    if (picker) {
+        picker.remove();
     }
 }
 
