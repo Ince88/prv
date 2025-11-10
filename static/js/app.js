@@ -62,6 +62,7 @@ function initializeApp() {
     const sendBtn = document.getElementById('send-btn');
     const assistantSelect = document.getElementById('assistant-select');
     const clearBtn = document.getElementById('clear-chat-btn');
+    const connectGmailBtn = document.getElementById('connect-gmail-btn');
     const loadEmailsBtn = document.getElementById('load-emails-btn');
     const viewEmailsBtn = document.getElementById('view-emails-btn');
     const companyResearchBtn = document.getElementById('company-research-btn');
@@ -96,6 +97,7 @@ function initializeApp() {
     });
     
     clearBtn.addEventListener('click', clearConversation);
+    connectGmailBtn.addEventListener('click', connectGmail);
     loadEmailsBtn.addEventListener('click', loadEmails);
     viewEmailsBtn.addEventListener('click', viewEmails);
     companyResearchBtn.addEventListener('click', openCompanyResearch);
@@ -103,6 +105,34 @@ function initializeApp() {
     
     // Focus input
     messageInput.focus();
+}
+
+async function connectGmail() {
+    try {
+        const response = await fetch('/api/gmail_auth_url');
+        const data = await response.json();
+        
+        if (response.ok && data.auth_url) {
+            // Open Gmail auth in new window
+            const width = 600;
+            const height = 700;
+            const left = (screen.width / 2) - (width / 2);
+            const top = (screen.height / 2) - (height / 2);
+            
+            window.open(
+                data.auth_url,
+                'Gmail Authorization',
+                `width=${width},height=${height},left=${left},top=${top}`
+            );
+            
+            addSystemMessage('✅ Gmail authorization window opened. Please sign in and grant access.');
+        } else {
+            alert('Error: ' + (data.error || 'Failed to get authorization URL'));
+        }
+    } catch (error) {
+        alert('Failed to connect Gmail: ' + error.message);
+        console.error('Error:', error);
+    }
 }
 
 async function loadEmails() {
@@ -147,7 +177,14 @@ async function loadEmails() {
             
             alert(`✅ Successfully loaded ${data.count} emails!\n\n💡 Use the quick prompts or type your own. It will open ChatGPT with the full email context.`);
         } else {
-            alert('Error: ' + (data.error || 'Failed to load emails'));
+            // Check if needs Gmail authorization
+            if (data.needs_auth) {
+                if (confirm('❌ Gmail not connected.\n\n✅ Click OK to connect your Gmail account now.')) {
+                    await connectGmail();
+                }
+            } else {
+                alert('Error: ' + (data.error || 'Failed to load emails'));
+            }
         }
     } catch (error) {
         alert('Failed to load emails: ' + error.message);

@@ -318,17 +318,146 @@ def extract_message_body(payload):
     return body.strip()
 
 
+@app.route('/api/gmail_auth_url', methods=['GET'])
+def gmail_auth_url():
+    """Generate Gmail OAuth URL for user authorization"""
+    try:
+        if not os.path.exists(GMAIL_CREDENTIALS_PATH):
+            return jsonify({
+                'error': 'Gmail API is not configured.',
+                'needs_setup': True
+            }), 400
+        
+        from google_auth_oauthlib.flow import Flow
+        
+        SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+        
+        # Create flow
+        flow = Flow.from_client_secrets_file(
+            GMAIL_CREDENTIALS_PATH,
+            scopes=SCOPES,
+            redirect_uri=request.host_url.rstrip('/') + '/api/gmail_callback'
+        )
+        
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent'
+        )
+        
+        # Store state in session
+        session['gmail_oauth_state'] = state
+        
+        return jsonify({
+            'auth_url': authorization_url
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gmail_callback')
+def gmail_callback():
+    """Handle Gmail OAuth callback"""
+    try:
+        from google_auth_oauthlib.flow import Flow
+        from google.oauth2.credentials import Credentials
+        
+        SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+        
+        # Verify state
+        state = session.get('gmail_oauth_state')
+        if not state:
+            return '<h1>Error: Invalid state</h1><p>Please try again.</p>', 400
+        
+        # Create flow with same redirect URI
+        flow = Flow.from_client_secrets_file(
+            GMAIL_CREDENTIALS_PATH,
+            scopes=SCOPES,
+            state=state,
+            redirect_uri=request.host_url.rstrip('/') + '/api/gmail_callback'
+        )
+        
+        # Fetch token
+        flow.fetch_token(authorization_response=request.url)
+        
+        # Get credentials
+        creds = flow.credentials
+        
+        # Save token for this user session
+        session['gmail_token'] = {
+            'token': creds.token,
+            'refresh_token': creds.refresh_token,
+            'token_uri': creds.token_uri,
+            'client_id': creds.client_id,
+            'client_secret': creds.client_secret,
+            'scopes': creds.scopes
+        }
+        
+        # Return success page
+        return '''
+        <html>
+        <head>
+            <title>Gmail Connected!</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                }
+                .container {
+                    background: white;
+                    padding: 48px;
+                    border-radius: 16px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    text-align: center;
+                    max-width: 400px;
+                }
+                h1 { color: #27ae60; margin-bottom: 16px; }
+                p { color: #666; margin-bottom: 24px; line-height: 1.6; }
+                button {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border: none;
+                    padding: 12px 32px;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                }
+                button:hover { opacity: 0.9; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>✅ Gmail Connected!</h1>
+                <p>Your Gmail account has been successfully connected. You can now load email history.</p>
+                <button onclick="window.close()">Close Window</button>
+                <script>
+                    setTimeout(() => {
+                        window.close();
+                        if (!window.closed) {
+                            window.location.href = '/';
+                        }
+                    }, 3000);
+                </script>
+            </div>
+        </body>
+        </html>
+        '''
+        
+    except Exception as e:
+        return f'<h1>Error</h1><p>{str(e)}</p>', 500
+
+
 @app.route('/api/load_emails', methods=['POST'])
 def load_emails():
     """Load email history from Gmail"""
     try:
-        # Check if Gmail credentials exist
-        if not os.path.exists(GMAIL_CREDENTIALS_PATH):
-            return jsonify({
-                'error': 'Gmail API is not configured. Please set up Gmail credentials in Settings.',
-                'needs_setup': True
-            }), 400
-        
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Invalid request'}), 400
@@ -338,43 +467,45 @@ def load_emails():
         if not email_address:
             return jsonify({'error': 'Email address is required'}), 400
         
+        # Check if user has authorized Gmail
+        gmail_token = session.get('gmail_token')
+        if not gmail_token:
+            return jsonify({
+                'error': 'Gmail not authorized. Please connect your Gmail account first.',
+                'needs_auth': True
+            }), 401
+        
         # Check if Gmail API is available
         try:
             from google.auth.transport.requests import Request
             from google.oauth2.credentials import Credentials
-            from google_auth_oauthlib.flow import InstalledAppFlow
             from googleapiclient.discovery import build
             import base64
             from email.utils import parsedate_to_datetime
         except ImportError as e:
             return jsonify({'error': f'Gmail API libraries not installed: {str(e)}'}), 400
         
-        # Gmail API setup
-        SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
-        creds = None
+        # Create credentials from session
+        creds = Credentials(
+            token=gmail_token['token'],
+            refresh_token=gmail_token.get('refresh_token'),
+            token_uri=gmail_token['token_uri'],
+            client_id=gmail_token['client_id'],
+            client_secret=gmail_token['client_secret'],
+            scopes=gmail_token['scopes']
+        )
         
-        # Try to load existing token
-        if os.path.exists(GMAIL_TOKEN_PATH):
+        # Refresh if expired
+        if creds.expired and creds.refresh_token:
             try:
-                creds = Credentials.from_authorized_user_file(GMAIL_TOKEN_PATH, SCOPES)
-            except:
-                creds = None
-        
-        # Login if needed
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                try:
-                    creds.refresh(Request())
-                except:
-                    creds = None
-            
-            if not creds:
-                flow = InstalledAppFlow.from_client_secrets_file(GMAIL_CREDENTIALS_PATH, SCOPES)
-                creds = flow.run_local_server(port=8080)
-            
-            # Save credentials
-            with open(GMAIL_TOKEN_PATH, 'w') as token:
-                token.write(creds.to_json())
+                creds.refresh(Request())
+                # Update session with new token
+                session['gmail_token']['token'] = creds.token
+            except Exception as e:
+                return jsonify({
+                    'error': 'Gmail token expired. Please reconnect your Gmail account.',
+                    'needs_auth': True
+                }), 401
         
         service = build('gmail', 'v1', credentials=creds)
         
