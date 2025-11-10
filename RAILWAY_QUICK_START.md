@@ -34,6 +34,15 @@ git push -u origin main
 
 In Railway dashboard → Your service → **Variables** tab:
 
+**Option A: Multiple Users (Recommended)**
+```bash
+OPENAI_API_KEY=sk-proj-YOUR_KEY_HERE
+FLASK_ENV=production
+FLASK_SECRET_KEY=paste_random_64_char_string_here
+BASIC_AUTH_USERS=VPeter:Peter2025prvAI,FNora:Nora2025prvAI,MIvan:Ivan2025prvAI,CInce:Ince2025prvAI
+```
+
+**Option B: Single User (Legacy)**
 ```bash
 OPENAI_API_KEY=sk-proj-YOUR_KEY_HERE
 FLASK_ENV=production
@@ -46,6 +55,9 @@ BASIC_AUTH_PASSWORD=ChooseStrongPassword123!
 ```python
 import secrets; print(secrets.token_hex(32))
 ```
+
+**Multi-User Format:**
+`username1:password1,username2:password2,username3:password3`
 
 **Save** → Railway redeploys automatically (2-3 minutes)
 

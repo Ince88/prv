@@ -40,8 +40,22 @@ if IS_PRODUCTION:
 CORS(app)
 
 # Basic Authentication (for internal company use)
-BASIC_AUTH_USERNAME = os.getenv('BASIC_AUTH_USERNAME')
-BASIC_AUTH_PASSWORD = os.getenv('BASIC_AUTH_PASSWORD')
+# Support multiple users - format: username1:password1,username2:password2
+BASIC_AUTH_USERS = {}
+auth_string = os.getenv('BASIC_AUTH_USERS', '')
+if auth_string:
+    # Parse multiple users from env var
+    for user_pair in auth_string.split(','):
+        if ':' in user_pair:
+            username, password = user_pair.split(':', 1)
+            BASIC_AUTH_USERS[username.strip()] = password.strip()
+else:
+    # Fallback to single user (backward compatibility)
+    single_user = os.getenv('BASIC_AUTH_USERNAME')
+    single_pass = os.getenv('BASIC_AUTH_PASSWORD')
+    if single_user and single_pass:
+        BASIC_AUTH_USERS[single_user] = single_pass
+
 ALLOWED_EMAIL_DOMAINS = os.getenv('ALLOWED_EMAIL_DOMAINS', '').split(',') if os.getenv('ALLOWED_EMAIL_DOMAINS') else []
 
 # Load API keys from environment variables (production) or config file (local)
@@ -113,9 +127,9 @@ conversations = {}
 # Authentication decorator for internal use
 def check_auth(username, password):
     """Check if username/password is valid"""
-    if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
+    if not BASIC_AUTH_USERS:
         return True  # No auth configured
-    return username == BASIC_AUTH_USERNAME and password == BASIC_AUTH_PASSWORD
+    return username in BASIC_AUTH_USERS and BASIC_AUTH_USERS[username] == password
 
 
 def authenticate():
@@ -131,7 +145,7 @@ def requires_auth(f):
     """Decorator for routes that require authentication"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not BASIC_AUTH_USERNAME or not BASIC_AUTH_PASSWORD:
+        if not BASIC_AUTH_USERS:
             return f(*args, **kwargs)  # No auth required
         
         auth = request.authorization

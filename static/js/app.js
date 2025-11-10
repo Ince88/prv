@@ -5,15 +5,8 @@ let isProcessing = false;
 let currentEmails = [];
 let currentEmailAddress = '';
 
-// Email prompts - stored in localStorage
-let emailPrompts = JSON.parse(localStorage.getItem('emailPrompts')) || [
-    { id: 1, icon: '📧', text: 'Válaszoljunk az utolsó emailre' },
-    { id: 2, icon: '💰', text: 'Ajánljunk fel egy banneres megjelenés kedvezményt a szokásos 499.000 Ft helyett 399.000 Ft-ért. Emeljük ki, hogy a partner cégnek is sokat jelentene, ha ők is csatlakoznának a projekthez!' },
-    { id: 3, icon: '🔄', text: 'Kérjünk vissza egy rövid visszajelzést: érdekli-e őket a megjelenés, vagy van-e kérdésük' },
-    { id: 4, icon: '📞', text: 'Köszönjük meg a választ és javasoljunk egy rövid Teams/Google Meet egyeztetést a részletekről' },
-    { id: 5, icon: '📄', text: 'Küldjük el a projekt céges kiadvány mintapéldányát és emeljük ki, milyen nagy láthatóságot kapnának' },
-    { id: 6, icon: '⏰', text: 'Írjunk egy barátságos follow-up emailt, ha már egy ideje nem válaszoltak' }
-];
+// Email prompts - stored in localStorage (starts empty so users can customize)
+let emailPrompts = JSON.parse(localStorage.getItem('emailPrompts')) || [];
 
 function saveEmailPrompts() {
     localStorage.setItem('emailPrompts', JSON.stringify(emailPrompts));
@@ -1144,55 +1137,95 @@ function showEmailPromptSuggestions() {
     `;
     
     // Generate buttons dynamically from emailPrompts array
-    const buttonsHTML = emailPrompts.map((prompt, index) => {
-        return `
-            <button onclick="useEmailPromptByIndex(${index})" style="
-                padding: 12px 16px;
-                background: white;
-                color: #667eea;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                text-align: left;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                ${prompt.icon} ${prompt.text.length > 50 ? prompt.text.substring(0, 47) + '...' : prompt.text}
-            </button>
+    let buttonsHTML = '';
+    
+    if (emailPrompts.length === 0) {
+        // Show empty state with call to action
+        buttonsHTML = `
+            <div style="
+                padding: 32px;
+                text-align: center;
+                background: rgba(255,255,255,0.1);
+                border-radius: 12px;
+                border: 2px dashed rgba(255,255,255,0.3);
+            ">
+                <div style="font-size: 48px; margin-bottom: 12px;">📝</div>
+                <div style="color: white; font-size: 16px; font-weight: 600; margin-bottom: 8px;">
+                    Még nincsenek gyors promptjaid
+                </div>
+                <div style="color: rgba(255,255,255,0.8); font-size: 14px; margin-bottom: 16px;">
+                    Adj hozzá gyakran használt email promptokat a gyorsabb munkához!
+                </div>
+                <button onclick="openManagePromptsModal()" style="
+                    padding: 12px 24px;
+                    background: white;
+                    color: #667eea;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-weight: 600;
+                    font-size: 14px;
+                    transition: all 0.2s;
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                    ➕ Első prompt hozzáadása
+                </button>
+            </div>
         `;
-    }).join('');
+    } else {
+        buttonsHTML = emailPrompts.map((prompt, index) => {
+            return `
+                <button onclick="useEmailPromptByIndex(${index})" style="
+                    padding: 12px 16px;
+                    background: white;
+                    color: #667eea;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    text-align: left;
+                    transition: all 0.2s;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                    ${prompt.icon} ${prompt.text.length > 50 ? prompt.text.substring(0, 47) + '...' : prompt.text}
+                </button>
+            `;
+        }).join('');
+    }
     
     suggestionsDiv.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <div style="color: white; font-weight: 600; font-size: 16px;">
                 💡 Gyors Email Promptok
             </div>
-            <button onclick="openManagePromptsModal()" style="
-                padding: 8px 16px;
-                background: rgba(255,255,255,0.2);
-                border: 1px solid rgba(255,255,255,0.3);
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 500;
-                color: white;
-                transition: all 0.2s;
-                font-size: 14px;
-            " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-                ⚙️ Promptok kezelése
-            </button>
+            ${emailPrompts.length > 0 ? `
+                <button onclick="openManagePromptsModal()" style="
+                    padding: 8px 16px;
+                    background: rgba(255,255,255,0.2);
+                    border: 1px solid rgba(255,255,255,0.3);
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-weight: 500;
+                    color: white;
+                    transition: all 0.2s;
+                    font-size: 14px;
+                " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                    ⚙️ Promptok kezelése
+                </button>
+            ` : ''}
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">
             ${buttonsHTML}
         </div>
         
-        <div style="margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.15); border-radius: 8px;">
-            <div style="color: white; font-size: 13px; line-height: 1.5;">
-                💡 <strong>Tipp:</strong> Kattints egy gombra, vagy írj egyedi promptot az input mezőbe. 
-                A ChatGPT automatikusan megnyílik a teljes email kontextussal!
+        ${emailPrompts.length > 0 ? `
+            <div style="margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                <div style="color: white; font-size: 13px; line-height: 1.5;">
+                    💡 <strong>Tipp:</strong> Kattints egy gombra, vagy írj egyedi promptot az input mezőbe. 
+                    A ChatGPT automatikusan megnyílik a teljes email kontextussal!
+                </div>
             </div>
-        </div>
+        ` : ''}
     `;
     
     container.appendChild(suggestionsDiv);
