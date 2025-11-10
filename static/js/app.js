@@ -1216,21 +1216,36 @@ function showEmailPromptSuggestions() {
             <div style="color: white; font-weight: 600; font-size: 16px;">
                 💡 Gyors Email Promptok
             </div>
-            ${emailPrompts.length > 0 ? `
-                <button onclick="openManagePromptsModal()" style="
+            <div style="display: flex; gap: 8px;">
+                <button onclick="generateAISuggestion()" style="
                     padding: 8px 16px;
-                    background: rgba(255,255,255,0.2);
-                    border: 1px solid rgba(255,255,255,0.3);
+                    background: rgba(255,255,255,0.95);
+                    border: 2px solid rgba(255,255,255,0.5);
                     border-radius: 8px;
                     cursor: pointer;
-                    font-weight: 500;
-                    color: white;
+                    font-weight: 600;
+                    color: #667eea;
                     transition: all 0.2s;
                     font-size: 14px;
-                " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-                    ⚙️ Promptok kezelése
+                " onmouseover="this.style.background='white'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.95)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                    🤖 AI Javaslat
                 </button>
-            ` : ''}
+                ${emailPrompts.length > 0 ? `
+                    <button onclick="openManagePromptsModal()" style="
+                        padding: 8px 16px;
+                        background: rgba(255,255,255,0.2);
+                        border: 1px solid rgba(255,255,255,0.3);
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 500;
+                        color: white;
+                        transition: all 0.2s;
+                        font-size: 14px;
+                    " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                        ⚙️ Promptok kezelése
+                    </button>
+                ` : ''}
+            </div>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">
             ${buttonsHTML}
@@ -1267,6 +1282,126 @@ function useEmailPrompt(promptText) {
     
     // Optionally auto-send
     // sendMessage();
+}
+
+function generateAISuggestion() {
+    if (!currentEmails || currentEmails.length === 0) {
+        showToast('❌ Nincs betöltött email history!', 'error');
+        return;
+    }
+    
+    // Detect language
+    let language = "Hungarian";
+    let hungarianScore = 0;
+    let totalChars = 0;
+    
+    for (let conv of currentEmails.slice(0, 5)) {
+        const body = conv.body || '';
+        const hungarianChars = (body.match(/[áéíóöőúüűÁÉÍÓÖŐÚÜŰ]/g) || []).length;
+        hungarianScore += hungarianChars;
+        totalChars += body.length;
+    }
+    
+    if (totalChars > 0 && (hungarianScore / totalChars) < 0.005) {
+        language = "English";
+    }
+    
+    const userInfo = getUserInfo();
+    
+    // Build comprehensive analysis prompt
+    let prompt = `COMPREHENSIVE EMAIL ANALYSIS & RECOMMENDATION
+
+==============================================================
+CONTEXT:
+==============================================================
+- Your Role: AI Marketing Assistant for PRV
+- Current User: ${userInfo.fullName} (${userInfo.email}), PRV Sales Manager
+- Partner: ${currentEmailAddress}
+- Total Emails in Thread: ${currentEmails.length}
+
+BUSINESS MODEL:
+- PRV creates corporate publications for large companies (project companies)
+- The project company sends invitations to their suppliers to participate
+- PRV forwards this invitation, then contacts suppliers via PHONE/EMAIL
+- THIS IS WARM OUTREACH - supplier already received invitation from project company
+- Suppliers PAY for their appearance (advertisement or PR article)
+- Format: PRINTED and DIGITAL publication
+- Benefit: visibility to project company and supply chain, business opportunities
+
+==============================================================
+COMPLETE EMAIL THREAD (${currentEmails.length} emails):
+==============================================================
+
+`;
+
+    // Add ALL emails with full context
+    currentEmails.forEach((conv, i) => {
+        let body = conv.body || '';
+        // Keep more content for better analysis
+        if (body.length > 1500) {
+            body = body.substring(0, 1500) + '... [levágva]';
+        }
+        
+        prompt += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EMAIL #${i + 1} - ${conv.direction}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Dátum: ${conv.date}
+Tárgy: ${conv.subject}
+Feladó: ${conv.from}
+
+Tartalom:
+${body}
+
+`;
+    });
+    
+    prompt += `
+==============================================================
+YOUR TASK - PROVIDE DETAILED ANALYSIS:
+==============================================================
+
+Please analyze this ENTIRE email conversation thread and provide:
+
+1. **HELYZETELEMZÉS (Situation Analysis)**:
+   - Mi történt eddig ebben a beszélgetésben?
+   - Hol tartunk most a kapcsolatfelvétel folyamatában?
+   - Mutatta-e a partner érdeklődést, vagy épp hideg/közömbös?
+   - Van-e még függőben lévő kérdés vagy action item?
+
+2. **JAVASOLT EMAIL VÁLASZ**:
+   - Írj egy konkrét, használatra kész email választ ${language} nyelven
+   - Természetes, barátságos, de professzionális hangnem
+   - Vedd figyelembe az összes eddigi email kontextust
+   - Ha már volt válasz, arra reagálj
+   - Ha nincs válasz, kedves follow-up
+   - NE erőltesd a meetinget ha nem releváns
+   - Hivatkozz a projekt cég meghívójára amikor releváns
+
+3. **KÖVETKEZŐ LÉPÉS (Next Action)**:
+   - Mit javasolsz következő lépésként?
+   - Telefonhívás? Várjunk még? Email follow-up?
+   - Mikor érdemes újra felvenni a kapcsolatot?
+   - Van-e bármilyen red flag vagy pozitív jel?
+
+==============================================================
+IMPORTANT:
+- Write the email response in ${language.toUpperCase()}
+- Be context-aware - don't repeat information
+- Be natural and human
+- Consider the entire conversation flow
+==============================================================
+
+Please provide your analysis now!`;
+
+    // Copy to clipboard and open ChatGPT
+    navigator.clipboard.writeText(prompt).then(() => {
+        window.open('https://chat.openai.com/', '_blank');
+        showToast('✅ AI Javaslat prompt vágólapra másolva! Illeszd be ChatGPT-be.', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        showToast('❌ Nem sikerült a vágólapra másolni!', 'error');
+    });
 }
 
 // Check API Configuration
