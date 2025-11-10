@@ -161,10 +161,17 @@ def index():
     """Main page"""
     has_openai = client is not None
     has_gmail = os.path.exists(GMAIL_CREDENTIALS_PATH)
+    
+    # Get username from auth if available
+    username = None
+    if request.authorization:
+        username = request.authorization.username
+    
     return render_template('index.html', 
                          assistants=ASSISTANTS,
                          has_openai=has_openai,
-                         has_gmail=has_gmail)
+                         has_gmail=has_gmail,
+                         username=username)
 
 
 @app.route('/api/send_message', methods=['POST'])

@@ -93,8 +93,9 @@
             
             <!-- Pass config status from Flask -->
             <script>
-                window.HAS_OPENAI = {{ 'true' if has_openai else 'false' }};
-                window.HAS_GMAIL = {{ 'true' if has_gmail else 'false' }};
+                window.HAS_OPENAI = {% if has_openai %}true{% else %}false{% endif %};
+                window.HAS_GMAIL = {% if has_gmail %}true{% else %}false{% endif %};
+                window.CURRENT_USERNAME = {% if username %}{{ username|tojson }}{% else %}null{% endif %};
             </script>
         </div>
         
@@ -147,7 +148,7 @@
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=12"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=13"></script>
 </body>
 </html>
 

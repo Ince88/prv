@@ -12,6 +12,21 @@ function saveEmailPrompts() {
     localStorage.setItem('emailPrompts', JSON.stringify(emailPrompts));
 }
 
+// User mapping for email context
+function getUserInfo() {
+    const username = window.CURRENT_USERNAME;
+    
+    const userMap = {
+        'FNora': { fullName: 'Fülöp Nóra', email: 'nora@prv.hu' },
+        'VPeter': { fullName: 'Varsányi Péter', email: 'peter@prv.hu' },
+        'MIvan': { fullName: 'Moran - Villota Iván', email: 'ivan@prv.hu' },
+        'CInce': { fullName: 'Czechner Ince', email: 'ince@prv.hu' }
+    };
+    
+    // Return user info if found, otherwise default to Czechner Ince
+    return userMap[username] || { fullName: 'Czechner Ince', email: 'ince@prv.hu' };
+}
+
 // Assistant information
 const assistants = {
     "Marketing Expert": {
@@ -525,9 +540,12 @@ function openChatGPTWithEmailContext(userMessage) {
         lastEmailLanguage = "Hungarian";
     }
     
+    // Get current user info from window variable
+    const userInfo = getUserInfo();
+    
     // Build the full prompt
     let prompt = `CONTEXT:
-- User: CZECHNER INCE (ince@prv.hu), PRV Sales Manager
+- User: ${userInfo.fullName} (${userInfo.email}), PRV Sales Manager
 - Email conversation with: ${currentEmailAddress}
 
 BUSINESS MODEL (for your understanding):
@@ -570,7 +588,7 @@ ${'-'.repeat(60)}
     
     prompt += `\n\n${'='.repeat(60)}
 
-CZECHNER INCE'S REQUEST:
+${userInfo.fullName.toUpperCase()}'S REQUEST:
 ${userMessage}
 
 ${'='.repeat(60)}
