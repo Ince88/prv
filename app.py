@@ -343,6 +343,10 @@ def gmail_auth_url():
         
         SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
         
+        # Allow insecure transport for local development
+        if not IS_PRODUCTION:
+            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+        
         # Create flow
         flow = Flow.from_client_secrets_file(
             GMAIL_CREDENTIALS_PATH,
@@ -380,6 +384,10 @@ def gmail_callback():
         state = session.get('gmail_oauth_state')
         if not state:
             return '<h1>Error: Invalid state</h1><p>Please try again.</p>', 400
+        
+        # Allow insecure transport for local development
+        if not IS_PRODUCTION:
+            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
         
         # Create flow with same redirect URI
         flow = Flow.from_client_secrets_file(
