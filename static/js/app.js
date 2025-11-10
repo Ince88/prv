@@ -308,7 +308,13 @@ async function loadEmails() {
             // Add system message
             addSystemMessage(`✅ Loaded ${data.count} emails from ${email}. Now when you send a message, it will open ChatGPT with the full email context.`);
             
-            // Show email prompt suggestions
+            // Remove old email prompt suggestions if exists (so new one appears at bottom)
+            const oldSuggestions = document.getElementById('email-prompt-suggestions');
+            if (oldSuggestions) {
+                oldSuggestions.remove();
+            }
+            
+            // Show email prompt suggestions (will appear at the bottom)
             showEmailPromptSuggestions();
             
             // Focus on message input
@@ -1119,9 +1125,10 @@ function showEmailPromptSuggestions() {
         welcome.remove();
     }
     
-    // Check if suggestions already exist
-    if (document.getElementById('email-prompt-suggestions')) {
-        return;
+    // Remove old suggestions if exists (will be recreated at bottom)
+    const oldSuggestions = document.getElementById('email-prompt-suggestions');
+    if (oldSuggestions) {
+        oldSuggestions.remove();
     }
     
     // Create suggestions container
