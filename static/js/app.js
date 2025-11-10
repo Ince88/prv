@@ -72,6 +72,9 @@ function initializeApp() {
     // Check API configuration
     checkAPIConfiguration();
     
+    // Check Gmail connection status
+    checkGmailStatus();
+    
     // Update assistant description
     updateAssistantDescription();
     
@@ -138,6 +141,17 @@ async function connectGmail() {
                 }
             } else {
                 addSystemMessage('✅ Gmail authorization window opened. Please sign in and grant access.');
+                
+                // Poll to check if connected
+                const checkInterval = setInterval(async () => {
+                    const statusResponse = await fetch('/api/gmail_status');
+                    const statusData = await statusResponse.json();
+                    if (statusData.connected) {
+                        clearInterval(checkInterval);
+                        updateGmailUI(statusData);
+                        addSystemMessage('✅ Gmail connected successfully!');
+                    }
+                }, 2000);
             }
         } else {
             alert('Error: ' + (data.error || 'Failed to get authorization URL'));
@@ -148,6 +162,81 @@ async function connectGmail() {
     } finally {
         connectBtn.innerHTML = originalText;
         connectBtn.disabled = false;
+    }
+}
+
+function updateGmailUI(statusData) {
+    const connectBtn = document.getElementById('connect-gmail-btn');
+    const emailSection = connectBtn.closest('.sidebar-section');
+    
+    if (statusData.connected && statusData.email) {
+        // Hide connect button, show connected status
+        connectBtn.style.display = 'none';
+        
+        // Add or update connected status div
+        let statusDiv = document.getElementById('gmail-status-connected');
+        if (!statusDiv) {
+            statusDiv = document.createElement('div');
+            statusDiv.id = 'gmail-status-connected';
+            statusDiv.style.cssText = `
+                padding: 12px;
+                background: #d4edda;
+                border: 1px solid #28a745;
+                border-radius: 8px;
+                margin-bottom: 10px;
+                font-size: 13px;
+            `;
+            emailSection.insertBefore(statusDiv, connectBtn);
+        }
+        
+        statusDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span style="color: #28a745; font-weight: 600;">✓ Gmail Connected</span>
+            </div>
+            <div style="color: #155724; font-size: 12px; word-break: break-all;">
+                ${statusData.email}
+            </div>
+            <button onclick="disconnectGmail()" style="
+                margin-top: 8px;
+                padding: 6px 12px;
+                background: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+                width: 100%;
+            ">Disconnect</button>
+        `;
+    } else {
+        // Show connect button
+        connectBtn.style.display = 'block';
+        const statusDiv = document.getElementById('gmail-status-connected');
+        if (statusDiv) {
+            statusDiv.remove();
+        }
+    }
+}
+
+async function disconnectGmail() {
+    if (confirm('Disconnect Gmail? You will need to reconnect to load email history.')) {
+        try {
+            await fetch('/api/gmail_disconnect', { method: 'POST' });
+            updateGmailUI({ connected: false });
+            addSystemMessage('Gmail disconnected.');
+        } catch (error) {
+            console.error('Error disconnecting:', error);
+        }
+    }
+}
+
+async function checkGmailStatus() {
+    try {
+        const response = await fetch('/api/gmail_status');
+        const data = await response.json();
+        updateGmailUI(data);
+    } catch (error) {
+        console.error('Failed to check Gmail status:', error);
     }
 }
 

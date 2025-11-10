@@ -256,6 +256,30 @@ def check_config():
     })
 
 
+@app.route('/api/gmail_status', methods=['GET'])
+def gmail_status():
+    """Check Gmail connection status"""
+    gmail_token = session.get('gmail_token')
+    user_email = session.get('gmail_user_email')
+    
+    return jsonify({
+        'connected': gmail_token is not None,
+        'email': user_email if gmail_token else None
+    })
+
+
+@app.route('/api/gmail_disconnect', methods=['POST'])
+def gmail_disconnect():
+    """Disconnect Gmail"""
+    session.pop('gmail_token', None)
+    session.pop('gmail_user_email', None)
+    session.pop('gmail_oauth_state', None)
+    
+    return jsonify({
+        'success': True
+    })
+
+
 @app.route('/api/save_config', methods=['POST'])
 def save_config():
     """Save API configuration"""
@@ -403,6 +427,15 @@ def gmail_callback():
         # Get credentials
         creds = flow.credentials
         
+        # Get user email from Google
+        try:
+            from googleapiclient.discovery import build
+            service = build('gmail', 'v1', credentials=creds)
+            profile = service.users().getProfile(userId='me').execute()
+            user_email = profile.get('emailAddress', 'Unknown')
+        except:
+            user_email = 'Connected'
+        
         # Save token for this user session
         session['gmail_token'] = {
             'token': creds.token,
@@ -412,6 +445,9 @@ def gmail_callback():
             'client_secret': creds.client_secret,
             'scopes': creds.scopes
         }
+        
+        # Save user email
+        session['gmail_user_email'] = user_email
         
         # Return success page
         return '''
