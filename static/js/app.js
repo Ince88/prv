@@ -108,30 +108,46 @@ function initializeApp() {
 }
 
 async function connectGmail() {
+    const connectBtn = document.getElementById('connect-gmail-btn');
+    const originalText = connectBtn.innerHTML;
+    
     try {
+        connectBtn.innerHTML = 'Connecting...';
+        connectBtn.disabled = true;
+        
         const response = await fetch('/api/gmail_auth_url');
         const data = await response.json();
         
         if (response.ok && data.auth_url) {
-            // Open Gmail auth in new window
+            // Try to open popup immediately
             const width = 600;
             const height = 700;
             const left = (screen.width / 2) - (width / 2);
             const top = (screen.height / 2) - (height / 2);
             
-            window.open(
+            const popup = window.open(
                 data.auth_url,
-                'Gmail Authorization',
-                `width=${width},height=${height},left=${left},top=${top}`
+                'GmailAuth',
+                `width=${width},height=${height},left=${left},top=${top},popup=yes`
             );
             
-            addSystemMessage('✅ Gmail authorization window opened. Please sign in and grant access.');
+            if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+                // Popup was blocked!
+                if (confirm('⚠️ Popup blocked by browser!\n\nClick OK to open Gmail authorization in a new tab instead.')) {
+                    window.open(data.auth_url, '_blank');
+                }
+            } else {
+                addSystemMessage('✅ Gmail authorization window opened. Please sign in and grant access.');
+            }
         } else {
             alert('Error: ' + (data.error || 'Failed to get authorization URL'));
         }
     } catch (error) {
         alert('Failed to connect Gmail: ' + error.message);
         console.error('Error:', error);
+    } finally {
+        connectBtn.innerHTML = originalText;
+        connectBtn.disabled = false;
     }
 }
 
