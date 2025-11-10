@@ -1706,9 +1706,9 @@ function deletePrompt(index) {
 function showEmojiPicker(index) {
     // Common emojis for quick selection
     const commonEmojis = [
-        '📧', '💰', '🔄', '📞', '📄', '⏰', '✅', '❌', '💡', '🎯',
-        '🚀', '📊', '💬', '📝', '🎉', '👍', '❤️', '⭐', '🔥', '📱',
-        '💻', '📈', '🎨', '🔔', '📌', '✨', '🌟', '🎁', '📮', '📬'
+        '📧', '💰', '🔄', '📞', '📄', '⏰', 
+        '✅', '❌', '💡', '🎯', '🚀', '📊', 
+        '💬', '📝', '🎉', '👍', '❤️', '⭐'
     ];
     
     // Remove existing picker if any
@@ -1725,35 +1725,63 @@ function showEmojiPicker(index) {
         background: white;
         border-radius: 12px;
         padding: 16px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
         z-index: 100001;
-        max-width: 300px;
+        width: 280px;
         border: 2px solid #667eea;
+        max-height: 400px;
+        overflow-y: auto;
     `;
     
-    // Position near the icon input
+    // Position near the icon input - better positioning logic
     const iconInput = document.getElementById('icon-input-' + index);
     if (iconInput) {
         const rect = iconInput.getBoundingClientRect();
-        picker.style.left = rect.left + 'px';
-        picker.style.top = (rect.bottom + 10) + 'px';
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        
+        // Calculate best position
+        let left = rect.left;
+        let top = rect.bottom + 10;
+        
+        // Adjust if picker goes off-screen horizontally
+        if (left + 280 > viewportWidth) {
+            left = viewportWidth - 280 - 20; // 20px margin
+        }
+        
+        // Adjust if picker goes off-screen vertically (position above instead)
+        if (top + 400 > viewportHeight) {
+            top = rect.top - 410; // Position above the input
+            if (top < 10) {
+                // If still not enough space, center vertically
+                top = (viewportHeight - 400) / 2;
+            }
+        }
+        
+        picker.style.left = Math.max(10, left) + 'px';
+        picker.style.top = Math.max(10, top) + 'px';
     }
     
     picker.innerHTML = `
         <div style="margin-bottom: 12px; color: #2c3e50; font-weight: 600; font-size: 14px;">
             Válassz emojit:
         </div>
-        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
+        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;">
             ${commonEmojis.map(emoji => `
                 <button onclick="selectEmoji(${index}, '${emoji}')" style="
-                    padding: 8px;
+                    padding: 6px;
                     border: 1px solid #e9ecef;
                     border-radius: 8px;
                     background: white;
                     cursor: pointer;
-                    font-size: 24px;
-                    transition: all 0.2s;
-                " onmouseover="this.style.background='#f8f9fa'; this.style.transform='scale(1.2)'" onmouseout="this.style.background='white'; this.style.transform='scale(1)'">
+                    font-size: 20px;
+                    transition: all 0.15s;
+                    width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                " onmouseover="this.style.background='#f8f9fa'; this.style.transform='scale(1.15)'" onmouseout="this.style.background='white'; this.style.transform='scale(1)'">
                     ${emoji}
                 </button>
             `).join('')}
@@ -1761,8 +1789,8 @@ function showEmojiPicker(index) {
         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e9ecef;">
             <input 
                 type="text" 
-                placeholder="Vagy írj be egy emojit..."
-                onkeyup="if(event.key === 'Enter') selectEmoji(${index}, this.value)"
+                placeholder="Vagy írj be egyet..."
+                onkeyup="if(event.key === 'Enter' && this.value.trim()) selectEmoji(${index}, this.value)"
                 style="
                     width: 100%;
                     padding: 8px 12px;
@@ -1783,7 +1811,10 @@ function showEmojiPicker(index) {
             cursor: pointer;
             font-size: 13px;
             color: #495057;
-        ">Bezárás</button>
+            font-weight: 500;
+        " onmouseover="this.style.background='#dee2e6'" onmouseout="this.style.background='#e9ecef'">
+            Bezárás
+        </button>
     `;
     
     document.body.appendChild(picker);
