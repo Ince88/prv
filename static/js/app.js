@@ -322,7 +322,8 @@ async function loadEmails() {
             messageInput.placeholder = 'Type your request or use a quick prompt above...';
             messageInput.focus();
             
-            alert(`✅ Successfully loaded ${data.count} emails!\n\n💡 Use the quick prompts or type your own. It will open ChatGPT with the full email context.`);
+            // Show toast notification instead of alert
+            showToast(`✅ Successfully loaded ${data.count} emails!`, 'success');
         } else {
             // Check if needs Gmail authorization
             if (data.needs_auth) {
@@ -1658,4 +1659,92 @@ function deletePrompt(index) {
         saveEmailPrompts();
         renderPromptsList();
     }
+}
+
+// ============================================================================
+// TOAST NOTIFICATIONS
+// ============================================================================
+
+function showToast(message, type = 'info') {
+    // Remove existing toast if any
+    const existingToast = document.getElementById('toast-notification');
+    if (existingToast) {
+        existingToast.remove();
+    }
+    
+    // Color schemes for different types
+    const colors = {
+        success: { bg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', text: 'white' },
+        error: { bg: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', text: 'white' },
+        info: { bg: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', text: 'white' },
+        warning: { bg: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', text: 'white' }
+    };
+    
+    const color = colors[type] || colors.info;
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.id = 'toast-notification';
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${color.bg};
+        color: ${color.text};
+        padding: 16px 24px;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        z-index: 100000;
+        font-weight: 500;
+        font-size: 15px;
+        max-width: 400px;
+        animation: slideInRight 0.4s ease-out, fadeOut 0.4s ease-in 2.6s;
+        pointer-events: auto;
+        cursor: pointer;
+    `;
+    toast.textContent = message;
+    
+    // Click to dismiss
+    toast.addEventListener('click', () => {
+        toast.style.animation = 'fadeOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+    });
+    
+    document.body.appendChild(toast);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.style.animation = 'fadeOut 0.4s ease-out';
+            setTimeout(() => toast.remove(), 400);
+        }
+    }, 3000);
+}
+
+// Add CSS animations if not already present
+if (!document.getElementById('toast-animations')) {
+    const style = document.createElement('style');
+    style.id = 'toast-animations';
+    style.textContent = `
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(style);
 }
