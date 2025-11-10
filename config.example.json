@@ -1,0 +1,16 @@
+{
+  "openai_api_key": "sk-proj-YOUR_OPENAI_API_KEY_HERE",
+  "assistants": {
+    "Marketing Expert": {
+      "id": "asst_5U9UaLBo3j5GYiHHMN9fGnYo",
+      "color": "#9b59b6",
+      "description": "Email marketing & B2B sales strategies"
+    },
+    "General Assistant": {
+      "id": "asst_N7h1H9a6xjtBrQwYMsdRZILZ",
+      "color": "#3498db",
+      "description": "General business assistance"
+    }
+  }
+}
+

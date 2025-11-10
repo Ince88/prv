@@ -1,0 +1,43 @@
+# API Keys and Credentials - NEVER COMMIT THESE!
+config.json
+gmail_credentials.json
+gmail_token.json
+.env
+token.pickle
+ai_assistant_standalone.py
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+flask.log
+
+# Temporary files
+*.tmp
+*.bak
+
+# Git
+.git/
+
