@@ -59,6 +59,16 @@ if os.getenv('GMAIL_CREDENTIALS_BASE64') and not os.path.exists(GMAIL_CREDENTIAL
     except Exception as e:
         print(f"⚠️  Warning: Could not decode Gmail credentials: {e}")
 
+# Handle Gmail token from base64 env var (for Railway)
+if os.getenv('GMAIL_TOKEN_BASE64') and not os.path.exists(GMAIL_TOKEN_PATH):
+    try:
+        token_json = base64.b64decode(os.getenv('GMAIL_TOKEN_BASE64')).decode('utf-8')
+        with open(GMAIL_TOKEN_PATH, 'w') as f:
+            f.write(token_json)
+        print("✅ Gmail token loaded from environment")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not decode Gmail token: {e}")
+
 # Default assistants (can be overridden in config)
 ASSISTANTS = {
     "Marketing Expert": {
