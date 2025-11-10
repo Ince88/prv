@@ -26,6 +26,13 @@ app = Flask(__name__)
 IS_PRODUCTION = os.getenv('FLASK_ENV') == 'production'
 app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(16))
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0 if not IS_PRODUCTION else 3600  # Cache in production
+
+# Session configuration for production (HTTPS)
+if IS_PRODUCTION:
+    app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS only
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
 CORS(app)
 
 # Basic Authentication (for internal company use)
