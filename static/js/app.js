@@ -5,6 +5,20 @@ let isProcessing = false;
 let currentEmails = [];
 let currentEmailAddress = '';
 
+// Email prompts - stored in localStorage
+let emailPrompts = JSON.parse(localStorage.getItem('emailPrompts')) || [
+    { id: 1, icon: '📧', text: 'Válaszoljunk az utolsó emailre' },
+    { id: 2, icon: '💰', text: 'Ajánljunk fel egy banneres megjelenés kedvezményt a szokásos 499.000 Ft helyett 399.000 Ft-ért. Emeljük ki, hogy a partner cégnek is sokat jelentene, ha ők is csatlakoznának a projekthez!' },
+    { id: 3, icon: '🔄', text: 'Kérjünk vissza egy rövid visszajelzést: érdekli-e őket a megjelenés, vagy van-e kérdésük' },
+    { id: 4, icon: '📞', text: 'Köszönjük meg a választ és javasoljunk egy rövid Teams/Google Meet egyeztetést a részletekről' },
+    { id: 5, icon: '📄', text: 'Küldjük el a projekt céges kiadvány mintapéldányát és emeljük ki, milyen nagy láthatóságot kapnának' },
+    { id: 6, icon: '⏰', text: 'Írjunk egy barátságos follow-up emailt, ha már egy ideje nem válaszoltak' }
+];
+
+function saveEmailPrompts() {
+    localStorage.setItem('emailPrompts', JSON.stringify(emailPrompts));
+}
+
 // Assistant information
 const assistants = {
     "Marketing Expert": {
@@ -1121,106 +1135,49 @@ function showEmailPromptSuggestions() {
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     `;
     
+    // Generate buttons dynamically from emailPrompts array
+    const buttonsHTML = emailPrompts.map(prompt => {
+        const escapedText = prompt.text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        return `
+            <button onclick="useEmailPrompt('${escapedText}')" style="
+                padding: 12px 16px;
+                background: white;
+                color: #667eea;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                text-align: left;
+                transition: all 0.2s;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                ${prompt.icon} ${prompt.text.length > 50 ? prompt.text.substring(0, 47) + '...' : prompt.text}
+            </button>
+        `;
+    }).join('');
+    
     suggestionsDiv.innerHTML = `
-        <div style="color: white; font-weight: 600; margin-bottom: 16px; font-size: 16px;">
-            💡 Gyors Email Promptok:
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="color: white; font-weight: 600; font-size: 16px;">
+                💡 Gyors Email Promptok
+            </div>
+            <button onclick="openManagePromptsModal()" style="
+                padding: 8px 16px;
+                background: rgba(255,255,255,0.2);
+                border: 1px solid rgba(255,255,255,0.3);
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 500;
+                color: white;
+                transition: all 0.2s;
+                font-size: 14px;
+            " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                ⚙️ Promptok kezelése
+            </button>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">
-            <button onclick="useEmailPrompt('Válaszoljunk az utolsó emailre')" style="
-                padding: 12px 16px;
-                background: white;
-                color: #667eea;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                text-align: left;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                📧 Válaszoljunk az utolsó emailre
-            </button>
-            
-            <button onclick="useEmailPrompt('Ajánljunk fel egy banneres megjelenés kedvezményt a szokásos 499.000 Ft helyett 399.000 Ft-ért. Emeljük ki, hogy a partner cégnek is sokat jelentene, ha ők is csatlakoznának a projekthez!')" style="
-                padding: 12px 16px;
-                background: white;
-                color: #667eea;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                text-align: left;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                💰 Banner kedvezmény (399.000 Ft)
-            </button>
-            
-            <button onclick="useEmailPrompt('Kérjünk vissza egy rövid visszajelzést: érdekli-e őket a megjelenés, vagy van-e kérdésük')" style="
-                padding: 12px 16px;
-                background: white;
-                color: #667eea;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                text-align: left;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                🔄 Kérjünk visszajelzést
-            </button>
-            
-            <button onclick="useEmailPrompt('Köszönjük meg a választ és javasoljunk egy rövid Teams/Google Meet egyeztetést a részletekről')" style="
-                padding: 12px 16px;
-                background: white;
-                color: #667eea;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                text-align: left;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                📞 Javasolj online meetinget
-            </button>
-            
-            <button onclick="useEmailPrompt('Küldjük el a projekt céges kiadvány mintapéldányát és emeljük ki, milyen nagy láthatóságot kapnának')" style="
-                padding: 12px 16px;
-                background: white;
-                color: #667eea;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                text-align: left;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                📄 Küldjünk mintapéldányt
-            </button>
-            
-            <button onclick="useEmailPrompt('Írjunk egy barátságos follow-up emailt, ha már egy ideje nem válaszoltak')" style="
-                padding: 12px 16px;
-                background: white;
-                color: #667eea;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                text-align: left;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                ⏰ Follow-up email
-            </button>
+            ${buttonsHTML}
         </div>
         
         <div style="margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.15); border-radius: 8px;">
@@ -1497,5 +1454,196 @@ async function saveConfiguration() {
         }
     } catch (error) {
         alert('❌ Failed to save configuration: ' + error.message);
+    }
+}
+
+// ============================================================================
+// EMAIL PROMPTS MANAGEMENT
+// ============================================================================
+
+function openManagePromptsModal() {
+    // Create modal overlay
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        backdrop-filter: blur(5px);
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        padding: 32px;
+        max-width: 700px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h2 style="margin: 0; color: #2c3e50; font-size: 24px;">⚙️ Email Promptok Kezelése</h2>
+            <button onclick="closeManagePromptsModal()" style="
+                background: none;
+                border: none;
+                font-size: 28px;
+                cursor: pointer;
+                color: #95a5a6;
+                line-height: 1;
+                padding: 0;
+                width: 32px;
+                height: 32px;
+            ">×</button>
+        </div>
+        
+        <div id="prompts-list" style="margin-bottom: 24px;">
+            <!-- Prompts will be rendered here -->
+        </div>
+        
+        <button onclick="addNewPrompt()" style="
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(102,126,234,0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+            ➕ Új Prompt Hozzáadása
+        </button>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // Close on overlay click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeManagePromptsModal();
+        }
+    });
+    
+    // Render existing prompts
+    renderPromptsList();
+}
+
+function closeManagePromptsModal() {
+    const modal = document.querySelector('[style*="backdrop-filter: blur(5px)"]');
+    if (modal) {
+        modal.remove();
+    }
+    
+    // Refresh the email prompt suggestions if they exist
+    const existingSuggestions = document.getElementById('email-prompt-suggestions');
+    if (existingSuggestions) {
+        existingSuggestions.remove();
+        showEmailPromptSuggestions();
+    }
+}
+
+function renderPromptsList() {
+    const promptsList = document.getElementById('prompts-list');
+    if (!promptsList) return;
+    
+    promptsList.innerHTML = emailPrompts.map((prompt, index) => `
+        <div style="
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 2px solid #e9ecef;
+        ">
+            <div style="display: flex; gap: 12px; align-items: start;">
+                <input 
+                    type="text" 
+                    value="${prompt.icon}" 
+                    onchange="updatePromptIcon(${index}, this.value)"
+                    style="
+                        width: 50px;
+                        padding: 8px;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        font-size: 20px;
+                        text-align: center;
+                    "
+                    placeholder="🎯"
+                />
+                <textarea 
+                    onchange="updatePromptText(${index}, this.value)"
+                    style="
+                        flex: 1;
+                        padding: 8px 12px;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        font-family: inherit;
+                        resize: vertical;
+                        min-height: 60px;
+                    "
+                    placeholder="Prompt szövege..."
+                >${prompt.text}</textarea>
+                <button 
+                    onclick="deletePrompt(${index})"
+                    style="
+                        background: #e74c3c;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 8px 16px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        transition: all 0.2s;
+                    "
+                    onmouseover="this.style.background='#c0392b'"
+                    onmouseout="this.style.background='#e74c3c'"
+                >🗑️</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addNewPrompt() {
+    const newId = emailPrompts.length > 0 ? Math.max(...emailPrompts.map(p => p.id)) + 1 : 1;
+    emailPrompts.push({
+        id: newId,
+        icon: '💡',
+        text: 'Új prompt szövege...'
+    });
+    saveEmailPrompts();
+    renderPromptsList();
+}
+
+function updatePromptIcon(index, newIcon) {
+    if (emailPrompts[index]) {
+        emailPrompts[index].icon = newIcon;
+        saveEmailPrompts();
+    }
+}
+
+function updatePromptText(index, newText) {
+    if (emailPrompts[index]) {
+        emailPrompts[index].text = newText;
+        saveEmailPrompts();
+    }
+}
+
+function deletePrompt(index) {
+    if (confirm('Biztosan törölni szeretnéd ezt a promptot?')) {
+        emailPrompts.splice(index, 1);
+        saveEmailPrompts();
+        renderPromptsList();
     }
 }
