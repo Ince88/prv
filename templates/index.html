@@ -45,7 +45,12 @@
                 <button class="sidebar-btn" id="connect-gmail-btn" style="margin-bottom: 10px; background: #27ae60; color: white; font-weight: 600;">
                     🔗 Connect Gmail
                 </button>
-                <input type="email" id="email-input" class="email-input" placeholder="Enter email address..." style="margin-bottom: 10px;">
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <input type="email" id="email-input" class="email-input" placeholder="Enter email address..." style="margin-bottom: 0; flex: 1;">
+                    <button onclick="pasteToEmailInput()" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; white-space: nowrap;">
+                        📋 Paste
+                    </button>
+                </div>
                 <button class="sidebar-btn" id="load-emails-btn" style="margin-bottom: 8px; background: #3498db; color: white;">
                     Load Email History
                 </button>
@@ -142,7 +147,7 @@
         </div>
     </div>
     
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=4"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=5"></script>
 </body>
 </html>
 

@@ -240,6 +240,28 @@ async function checkGmailStatus() {
     }
 }
 
+async function pasteToEmailInput() {
+    try {
+        const text = await navigator.clipboard.readText();
+        const emailInput = document.getElementById('email-input');
+        emailInput.value = text.trim();
+        emailInput.focus();
+    } catch (err) {
+        alert('Failed to read from clipboard. Please paste manually (Cmd+V or Ctrl+V).');
+    }
+}
+
+async function pasteToCompanyInput() {
+    try {
+        const text = await navigator.clipboard.readText();
+        const companyInput = document.getElementById('company-name-input');
+        companyInput.value = text.trim();
+        companyInput.focus();
+    } catch (err) {
+        alert('Nem sikerült beolvasni a vágólapról! Illeszd be manuálisan (Cmd+V vagy Ctrl+V).');
+    }
+}
+
 async function loadEmails() {
     const emailInput = document.getElementById('email-input');
     const email = emailInput.value.trim();
@@ -751,14 +773,26 @@ function openCompanyResearch() {
                 <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2d3748;">
                     Cég neve:
                 </label>
-                <input type="text" id="company-name-input" style="
-                    width: 100%;
-                    padding: 12px;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 8px;
-                    font-size: 14px;
-                    box-sizing: border-box;
-                " placeholder="Pl.: Teszt Kft." />
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="company-name-input" style="
+                        flex: 1;
+                        padding: 12px;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                    " placeholder="Pl.: Teszt Kft." />
+                    <button onclick="pasteToCompanyInput()" style="
+                        padding: 8px 16px;
+                        background: #6c757d;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        white-space: nowrap;
+                    ">📋 Paste</button>
+                </div>
             </div>
             
             <div style="margin-bottom: 24px;">
