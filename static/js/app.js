@@ -88,6 +88,7 @@ function initializeApp() {
     const loadEmailsBtn = document.getElementById('load-emails-btn');
     const viewEmailsBtn = document.getElementById('view-emails-btn');
     const companyResearchBtn = document.getElementById('company-research-btn');
+    const contactSearchBtn = document.getElementById('contact-search-btn');
     const setupBtn = document.getElementById('setup-btn');
     const emailInput = document.getElementById('email-input');
     
@@ -126,6 +127,7 @@ function initializeApp() {
     loadEmailsBtn.addEventListener('click', loadEmails);
     viewEmailsBtn.addEventListener('click', viewEmails);
     companyResearchBtn.addEventListener('click', openCompanyResearch);
+    contactSearchBtn.addEventListener('click', openContactSearch);
     setupBtn.addEventListener('click', openSetupWizard);
     
     // Focus input
@@ -1126,6 +1128,307 @@ function pasteResults() {
     }).catch(err => {
         alert('Nem sikerült beolvasni a vágólapról! Győződj meg róla, hogy másoltál valamit.');
     });
+}
+
+// ============================================================
+// CONTACT SEARCH MODAL
+// ============================================================
+
+function openContactSearch() {
+    // Create modal
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        padding: 20px;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        max-width: 600px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 0;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="background: #16a085; padding: 24px; border-radius: 16px 16px 0 0;">
+            <h2 style="margin: 0; font-size: 24px; color: white;">👤 Kapcsolattartó Keresése</h2>
+        </div>
+        
+        <div style="background: #d1f2eb; padding: 16px; border-bottom: 1px solid #a2d9ce;">
+            <p style="margin: 0; font-size: 14px; color: #0e6655; line-height: 1.5;">
+                💡 AI böngészőben nyílik meg (jobb eredmények)<br>
+                Másold ki az eredményt (Ctrl+C) és kattints a '📋 Beillesztés' gombra!<br>
+                💡 TIP: Perplexity MINDIG keres, ChatGPT néha offline módban van.
+            </p>
+        </div>
+        
+        <div style="padding: 24px;">
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2d3748;">
+                    Dolgozó neve:
+                </label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="contact-name-input" style="
+                        flex: 1;
+                        padding: 12px;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                    " placeholder="Pl.: Kiss János" />
+                    <button onclick="pasteToContactName()" style="
+                        padding: 8px 16px;
+                        background: #6c757d;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        white-space: nowrap;
+                    ">📋 Paste</button>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2d3748;">
+                    Cég neve:
+                </label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="contact-company-input" style="
+                        flex: 1;
+                        padding: 12px;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 8px;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                    " placeholder="Pl.: Teszt Kft." />
+                    <button onclick="pasteToContactCompany()" style="
+                        padding: 8px 16px;
+                        background: #6c757d;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        white-space: nowrap;
+                    ">📋 Paste</button>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                <button onclick="searchContactPerplexity()" style="
+                    flex: 1;
+                    padding: 12px 20px;
+                    background: #1e88e5;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                ">
+                    🔍 Perplexity (Ajánlott!)
+                </button>
+                
+                <button onclick="pasteContactResults()" style="
+                    flex: 1;
+                    padding: 12px 20px;
+                    background: #3498db;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    cursor: pointer;
+                ">
+                    📋 Beillesztés
+                </button>
+            </div>
+            
+            <div id="contact-results" style="
+                min-height: 100px;
+                max-height: 300px;
+                overflow-y: auto;
+                background: #f8f9fa;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                padding: 16px;
+                font-size: 14px;
+                line-height: 1.6;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                display: none;
+            "></div>
+            
+            <div style="margin-top: 16px; display: flex; gap: 10px;">
+                <button onclick="copyContactToChat()" style="
+                    flex: 1;
+                    padding: 12px 20px;
+                    background: #27ae60;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                ">
+                    ✅ Chat-be
+                </button>
+                
+                <button onclick="closeContactModal()" style="
+                    flex: 1;
+                    padding: 12px 20px;
+                    background: #e74c3c;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                ">
+                    ❌ Bezárás
+                </button>
+            </div>
+        </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+    
+    // Store modal reference for closing
+    window.currentContactModal = modal;
+}
+
+function searchContactPerplexity() {
+    const contactName = document.getElementById('contact-name-input').value.trim();
+    const companyName = document.getElementById('contact-company-input').value.trim();
+    
+    if (!contactName) {
+        alert('Kérlek add meg a dolgozó nevét!');
+        return;
+    }
+    
+    const companyInfo = companyName ? ` cégnél: ${companyName}` : '';
+    
+    const prompt = `🔍 HASZNÁLD A KERESÉSI FUNKCIÓD! 🔍
+
+Keress az interneten információt erről a személyről: ${contactName}${companyInfo}
+
+⚠️ KRITIKUS: HASZNÁLD A SEARCH FUNKCIÓD! Keress rá Google-ön, LinkedIn-en, céges weboldalakon, szakmai portálokon!
+
+AMIT KERESEK (csak ezeket):
+
+👤 SZEMÉLYES ADATOK:
+- Teljes név: ${contactName}
+- Pozíció/titulus
+- Cég: ${companyName || '[KERESD MEG!]'}
+- Telefonszám (keress rá! Céges weboldal, LinkedIn, szakmai adatbázisok)
+- Email cím (keress rá! Céges weboldal, LinkedIn, szakmai adatbázisok)
+
+📱 AHOL KERESHETSZ:
+1. Google keresés: "${contactName} ${companyName || ''} telefonszám email"
+2. LinkedIn profil
+3. Céges weboldal "Kapcsolat" vagy "Csapatunk" szekció
+4. Szakmai könyvtárak, cégjegyzékek
+5. Közösségi média profilok (ha releváns)
+
+⚠️ FONTOS:
+- CSAK a fenti 4 adatot keresd (név, titulus, telefonszám, email)
+- NE írj hosszú leírásokat vagy életrajzot
+- Ha nem találsz valamit, írd: "Nem található"
+- MINDIG adj meg forrást (honnan származik az adat)
+
+Formátum:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOLGOZÓ ADATAI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 Név: [teljes név]
+💼 Titulus: [pozíció]
+🏢 Cég: [cégnév]
+📞 Telefonszám: [szám vagy "Nem található"]
+📧 Email: [email vagy "Nem található"]
+
+📍 Forrás: [honnan származnak az adatok]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    navigator.clipboard.writeText(prompt).then(() => {
+        window.open('https://www.perplexity.ai/', '_blank');
+        showToast('✅ Prompt vágólapra másolva! Illeszd be Perplexity-be.', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Nem sikerült a vágólapra másolni! Próbáld újra.');
+    });
+}
+
+function pasteToContactName() {
+    navigator.clipboard.readText().then(text => {
+        document.getElementById('contact-name-input').value = text.trim();
+    }).catch(err => {
+        alert('Nem sikerült beolvasni a vágólapról!');
+    });
+}
+
+function pasteToContactCompany() {
+    navigator.clipboard.readText().then(text => {
+        document.getElementById('contact-company-input').value = text.trim();
+    }).catch(err => {
+        alert('Nem sikerült beolvasni a vágólapról!');
+    });
+}
+
+function pasteContactResults() {
+    navigator.clipboard.readText().then(text => {
+        const resultsDiv = document.getElementById('contact-results');
+        resultsDiv.textContent = text;
+        resultsDiv.style.display = 'block';
+    }).catch(err => {
+        alert('Nem sikerült beolvasni a vágólapról! Győződj meg róla, hogy másoltál valamit.');
+    });
+}
+
+function copyContactToChat() {
+    const resultsDiv = document.getElementById('contact-results');
+    const resultsText = resultsDiv.textContent;
+    
+    if (!resultsText || resultsText.trim() === '') {
+        alert('Nincs mit bemásolni! Előbb használd a Perplexity gombot és illeszd be az eredményt.');
+        return;
+    }
+    
+    const messageInput = document.getElementById('message-input');
+    messageInput.value = resultsText;
+    messageInput.style.height = 'auto';
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+    
+    closeContactModal();
+    messageInput.focus();
+}
+
+function closeContactModal() {
+    if (window.currentContactModal) {
+        window.currentContactModal.remove();
+        window.currentContactModal = null;
+    }
 }
 
 function showEmailPromptSuggestions() {
