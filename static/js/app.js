@@ -1179,18 +1179,18 @@ function openContactSearch() {
         <div style="padding: 24px;">
             <div style="margin-bottom: 16px;">
                 <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2d3748;">
-                    Dolgozó neve:
+                    Cég neve: <span style="color: #e74c3c;">*</span>
                 </label>
                 <div style="display: flex; gap: 8px;">
-                    <input type="text" id="contact-name-input" style="
+                    <input type="text" id="contact-company-input" style="
                         flex: 1;
                         padding: 12px;
                         border: 1px solid #e5e7eb;
                         border-radius: 8px;
                         font-size: 14px;
                         box-sizing: border-box;
-                    " placeholder="Pl.: Kiss János" />
-                    <button onclick="pasteToContactName()" style="
+                    " placeholder="Pl.: Teszt Kft." />
+                    <button onclick="pasteToContactCompany()" style="
                         padding: 8px 16px;
                         background: #6c757d;
                         color: white;
@@ -1204,19 +1204,19 @@ function openContactSearch() {
             </div>
             
             <div style="margin-bottom: 24px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2d3748;">
-                    Cég neve:
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #718096;">
+                    Dolgozó neve (opcionális):
                 </label>
                 <div style="display: flex; gap: 8px;">
-                    <input type="text" id="contact-company-input" style="
+                    <input type="text" id="contact-name-input" style="
                         flex: 1;
                         padding: 12px;
                         border: 1px solid #e5e7eb;
                         border-radius: 8px;
                         font-size: 14px;
                         box-sizing: border-box;
-                    " placeholder="Pl.: Teszt Kft." />
-                    <button onclick="pasteToContactCompany()" style="
+                    " placeholder="Pl.: Kiss János (ha üres, minden dolgozót keres)" />
+                    <button onclick="pasteToContactName()" style="
                         padding: 8px 16px;
                         background: #6c757d;
                         color: white;
@@ -1323,16 +1323,18 @@ function searchContactPerplexity() {
     const contactName = document.getElementById('contact-name-input').value.trim();
     const companyName = document.getElementById('contact-company-input').value.trim();
     
-    if (!contactName) {
-        alert('Kérlek add meg a dolgozó nevét!');
+    if (!companyName) {
+        alert('Kérlek add meg a cég nevét!');
         return;
     }
     
-    const companyInfo = companyName ? ` cégnél: ${companyName}` : '';
+    let prompt = '';
     
-    const prompt = `🔍 HASZNÁLD A KERESÉSI FUNKCIÓD! 🔍
+    if (contactName) {
+        // SPECIFIC PERSON SEARCH
+        prompt = `🔍 HASZNÁLD A KERESÉSI FUNKCIÓD! 🔍
 
-Keress az interneten információt erről a személyről: ${contactName}${companyInfo}
+Keress az interneten információt erről a személyről: ${contactName} cégnél: ${companyName}
 
 ⚠️ KRITIKUS: HASZNÁLD A SEARCH FUNKCIÓD! Keress rá Google-ön, LinkedIn-en, céges weboldalakon, szakmai portálokon!
 
@@ -1341,16 +1343,17 @@ AMIT KERESEK (csak ezeket):
 👤 SZEMÉLYES ADATOK:
 - Teljes név: ${contactName}
 - Pozíció/titulus
-- Cég: ${companyName || '[KERESD MEG!]'}
+- Cég: ${companyName}
 - Telefonszám (keress rá! Céges weboldal, LinkedIn, szakmai adatbázisok)
 - Email cím (keress rá! Céges weboldal, LinkedIn, szakmai adatbázisok)
 
 📱 AHOL KERESHETSZ:
-1. Google keresés: "${contactName} ${companyName || ''} telefonszám email"
+1. Google keresés: "${contactName} ${companyName} telefonszám email"
 2. LinkedIn profil
-3. Céges weboldal "Kapcsolat" vagy "Csapatunk" szekció
-4. Szakmai könyvtárak, cégjegyzékek
-5. Közösségi média profilok (ha releváns)
+3. Facebook profil és cég oldal
+4. Céges weboldal "Kapcsolat" vagy "Csapatunk" szekció
+5. Szakmai könyvtárak, cégjegyzékek
+6. Közösségi média profilok (ha releváns)
 
 ⚠️ FONTOS:
 - CSAK a fenti 4 adatot keresd (név, titulus, telefonszám, email)
@@ -1370,14 +1373,69 @@ DOLGOZÓ ADATAI
 
 📍 Forrás: [honnan származnak az adatok]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    } else {
+        // COMPANY-WIDE EMPLOYEE SEARCH
+        prompt = `🔍 HASZNÁLD A KERESÉSI FUNKCIÓD! 🔍
 
-    navigator.clipboard.writeText(prompt).then(() => {
-        window.open('https://www.perplexity.ai/', '_blank');
-        showToast('✅ Prompt vágólapra másolva! Illeszd be Perplexity-be.', 'success');
-    }).catch(err => {
-        console.error('Failed to copy:', err);
-        alert('Nem sikerült a vágólapra másolni! Próbáld újra.');
-    });
+Keress MINDEN ELÉRHETŐ DOLGOZÓT a következő cégnél: ${companyName}
+
+⚠️ KRITIKUS: HASZNÁLD A SEARCH FUNKCIÓD! Keress rá Google-ön, LinkedIn-en, céges weboldalakon!
+
+FELADAT:
+Találd meg MINDEN olyan dolgozót ennél a cégnél (${companyName}), akinek elérhető a következő információja:
+- Név
+- Pozíció/titulus
+- Telefonszám VAGY Email cím (legalább az egyik!)
+
+📱 AHOL KERESHETSZ:
+1. Céges weboldal "Kapcsolat", "Csapatunk", "Rólunk" szekció
+2. LinkedIn - cég oldal → "People" / "Dolgozók" fül
+3. Facebook - cég oldal → "About" / "Rólunk" / Posts with contact info
+4. Google keresés: "${companyName} dolgozók elérhetőség"
+5. Google keresés: "${companyName} kapcsolat telefonszám email"
+6. Szakmai könyvtárak, üzleti adatbázisok
+7. Cégjegyzék, opten.hu, vagy hasonló magyar adatbázisok
+
+⚠️ FONTOS:
+- Listázz MINDEN dolgozót akit találsz!
+- CSAK azokat add meg, akiknek van telefonszáma VAGY email címe
+- Vezetők, értékesítők, ügyfélszolgálat prioritás!
+- NE írj hosszú leírásokat
+- Ha nincs telefonszám vagy email, NE add hozzá a listához
+- MINDIG adj meg forrást minden személyhez
+
+Formátum (minden találat külön):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOLGOZÓK LISTÁJA - ${companyName}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👤 1. DOLGOZÓ:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 Név: [teljes név]
+💼 Titulus: [pozíció]
+🏢 Cég: ${companyName}
+📞 Telefonszám: [szám vagy "Nem található"]
+📧 Email: [email vagy "Nem található"]
+📍 Forrás: [honnan származnak az adatok]
+
+👤 2. DOLGOZÓ:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 Név: [teljes név]
+💼 Titulus: [pozíció]
+🏢 Cég: ${companyName}
+📞 Telefonszám: [szám vagy "Nem található"]
+📧 Email: [email vagy "Nem található"]
+📍 Forrás: [honnan származnak az adatok]
+
+... stb (add hozzá az ÖSSZESET akit találsz!)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ÖSSZESEN: [X dolgozó találva elérhetőséggel]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    }
+
+    const url = `https://www.perplexity.ai/?q=${encodeURIComponent(prompt)}`;
+    window.open(url, '_blank');
 }
 
 function pasteToContactName() {
