@@ -43,6 +43,8 @@ body {
     display: flex;
     flex-direction: column;
     box-shadow: var(--shadow-sm);
+    overflow-y: auto;
+    height: 100vh;
 }
 
 .sidebar-header {
