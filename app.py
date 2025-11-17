@@ -7,6 +7,7 @@ from flask import Flask, render_template, request, jsonify, session, Response
 from flask_cors import CORS
 from functools import wraps
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.utils import secure_filename
 import openai
 import threading
 import secrets
@@ -17,6 +18,10 @@ import os
 import json
 import base64
 from dotenv import load_dotenv
+import pandas as pd
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 
 # Load environment variables
 load_dotenv()
@@ -30,6 +35,15 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 IS_PRODUCTION = os.getenv('FLASK_ENV') == 'production'
 app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(16))
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0 if not IS_PRODUCTION else 3600  # Cache in production
+
+# File upload configuration
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Create uploads folder if it doesn't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Session configuration for production (HTTPS)
 if IS_PRODUCTION:
@@ -386,7 +400,10 @@ def gmail_auth_url():
         
         from google_auth_oauthlib.flow import Flow
         
-        SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+        SCOPES = [
+            'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/gmail.send'
+        ]
         
         # Allow insecure transport for local development
         if not IS_PRODUCTION:
@@ -423,7 +440,10 @@ def gmail_callback():
         from google_auth_oauthlib.flow import Flow
         from google.oauth2.credentials import Credentials
         
-        SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+        SCOPES = [
+            'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/gmail.send'
+        ]
         
         # Verify state
         state = session.get('gmail_oauth_state')
@@ -631,6 +651,289 @@ def load_emails():
         
     except Exception as e:
         print(f"Error in load_emails: {str(e)}")  # Log to console
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/api/upload_excel', methods=['POST'])
+def upload_excel():
+    """Upload and parse Excel file with contact list"""
+    try:
+        # Check if file is present
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file type. Please upload .xlsx, .xls, or .csv file'}), 400
+        
+        # Save file temporarily
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        # Parse Excel/CSV file
+        try:
+            if filename.endswith('.csv'):
+                df = pd.read_csv(filepath)
+            else:
+                df = pd.read_excel(filepath)
+        except Exception as e:
+            os.remove(filepath)
+            return jsonify({'error': f'Failed to parse file: {str(e)}'}), 400
+        
+        # Validate columns - look for various common column names
+        required_cols = {'company', 'person', 'email'}
+        df_cols_lower = {col.lower().strip(): col for col in df.columns}
+        
+        # Try to map columns
+        column_mapping = {}
+        
+        # Map company column
+        for possible in ['company', 'company name', 'company_name', 'ceg', 'cégnév']:
+            if possible in df_cols_lower:
+                column_mapping['company'] = df_cols_lower[possible]
+                break
+        
+        # Map person column
+        for possible in ['person', 'person name', 'person_name', 'name', 'contact', 'nev', 'név', 'kapcsolattarto', 'kapcsolattartó']:
+            if possible in df_cols_lower:
+                column_mapping['person'] = df_cols_lower[possible]
+                break
+        
+        # Map email column
+        for possible in ['email', 'e-mail', 'email address', 'email_address', 'mail']:
+            if possible in df_cols_lower:
+                column_mapping['email'] = df_cols_lower[possible]
+                break
+        
+        # Check if all required columns are found
+        if len(column_mapping) != 3:
+            missing = required_cols - set(column_mapping.keys())
+            os.remove(filepath)
+            return jsonify({
+                'error': f'Missing required columns: {", ".join(missing)}. Found columns: {", ".join(df.columns)}'
+            }), 400
+        
+        # Extract and clean data
+        contacts = []
+        for idx, row in df.iterrows():
+            company = str(row[column_mapping['company']]).strip() if pd.notna(row[column_mapping['company']]) else ''
+            person = str(row[column_mapping['person']]).strip() if pd.notna(row[column_mapping['person']]) else ''
+            email = str(row[column_mapping['email']]).strip() if pd.notna(row[column_mapping['email']]) else ''
+            
+            # Basic email validation
+            if email and '@' in email and '.' in email:
+                contacts.append({
+                    'company': company,
+                    'person': person,
+                    'email': email
+                })
+        
+        # Clean up file
+        os.remove(filepath)
+        
+        if len(contacts) == 0:
+            return jsonify({'error': 'No valid contacts found in file'}), 400
+        
+        # Store contacts in session for later use
+        session['bulk_email_contacts'] = contacts
+        
+        return jsonify({
+            'success': True,
+            'count': len(contacts),
+            'contacts': contacts[:10],  # Return first 10 for preview
+            'total_contacts': len(contacts)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/send_bulk_emails', methods=['POST'])
+def send_bulk_emails():
+    """Send bulk emails to contact list"""
+    try:
+        # Check if user has authorized Gmail
+        gmail_token = session.get('gmail_token')
+        if not gmail_token:
+            return jsonify({
+                'error': 'Gmail not authorized. Please connect your Gmail account first.',
+                'needs_auth': True
+            }), 401
+        
+        # Get contacts from session
+        contacts = session.get('bulk_email_contacts', [])
+        if not contacts:
+            return jsonify({'error': 'No contacts loaded. Please upload an Excel file first.'}), 400
+        
+        # Get email template from request
+        data = request.json
+        subject_template = data.get('subject', '').strip()
+        body_template = data.get('body', '').strip()
+        sender_name = data.get('sender_name', '').strip()
+        signature = data.get('signature', '').strip()
+        
+        if not subject_template or not body_template:
+            return jsonify({'error': 'Email subject and body are required'}), 400
+        
+        # Import Gmail libraries
+        try:
+            from google.auth.transport.requests import Request
+            from google.oauth2.credentials import Credentials
+            from googleapiclient.discovery import build
+        except ImportError as e:
+            return jsonify({'error': f'Gmail API libraries not installed: {str(e)}'}), 400
+        
+        # Create credentials from session
+        creds = Credentials(
+            token=gmail_token['token'],
+            refresh_token=gmail_token.get('refresh_token'),
+            token_uri=gmail_token['token_uri'],
+            client_id=gmail_token['client_id'],
+            client_secret=gmail_token['client_secret'],
+            scopes=gmail_token['scopes']
+        )
+        
+        # Refresh if expired
+        if creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                session['gmail_token']['token'] = creds.token
+            except Exception as e:
+                return jsonify({
+                    'error': 'Gmail token expired. Please reconnect your Gmail account.',
+                    'needs_auth': True
+                }), 401
+        
+        # Build Gmail service
+        service = build('gmail', 'v1', credentials=creds)
+        
+        # Get user's email address for From header
+        try:
+            profile = service.users().getProfile(userId='me').execute()
+            user_email = profile.get('emailAddress', '')
+        except:
+            user_email = session.get('gmail_user_email', '')
+        
+        # Send emails
+        results = {
+            'success': [],
+            'failed': []
+        }
+        
+        for contact in contacts:
+            try:
+                # Replace placeholders in subject and body
+                subject = subject_template.replace('{{company}}', contact['company'])
+                subject = subject.replace('{{person}}', contact['person'])
+                subject = subject.replace('{{email}}', contact['email'])
+                
+                body = body_template.replace('{{company}}', contact['company'])
+                body = body.replace('{{person}}', contact['person'])
+                body = body.replace('{{email}}', contact['email'])
+                
+                # Create message
+                message = MIMEMultipart('related')
+                message['To'] = contact['email']
+                message['Subject'] = subject
+                
+                # Set From header with display name if provided
+                if sender_name and user_email:
+                    message['From'] = f'{sender_name} <{user_email}>'
+                elif user_email:
+                    message['From'] = user_email
+                
+                # Convert body to HTML with line breaks
+                html_body = body.replace('\n', '<br>')
+                
+                # Build HTML signature with logo if signature provided
+                if signature:
+                    # Replace placeholders in signature
+                    sig = signature.replace('{{company}}', contact['company'])
+                    sig = sig.replace('{{person}}', contact['person'])
+                    sig = sig.replace('{{email}}', contact['email'])
+                    
+                    # HTML signature with embedded logo (logo on top)
+                    html_signature = f'''
+                    <div style="margin-top: 20px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+                        <table cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td style="text-align: left;">
+                                    <img src="cid:prv_logo" alt="PRV Logo" width="120" style="display: block; margin-bottom: 15px;">
+                                    <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
+                                        {sig.replace(chr(10), '<br>')}
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    '''
+                    full_html = f'<html><body><div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">{html_body}</div>{html_signature}</body></html>'
+                else:
+                    full_html = f'<html><body><div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">{html_body}</div></body></html>'
+                
+                # Add HTML body
+                message.attach(MIMEText(full_html, 'html'))
+                
+                # Embed logo image if signature is provided
+                if signature:
+                    try:
+                        logo_path = 'prv.png'
+                        if os.path.exists(logo_path):
+                            with open(logo_path, 'rb') as img:
+                                logo_img = MIMEImage(img.read())
+                                logo_img.add_header('Content-ID', '<prv_logo>')
+                                logo_img.add_header('Content-Disposition', 'inline', filename='prv.png')
+                                message.attach(logo_img)
+                    except Exception as e:
+                        print(f"Warning: Could not attach logo: {e}")
+                
+                # Encode message
+                raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+                
+                # Send via Gmail API
+                send_result = service.users().messages().send(
+                    userId='me',
+                    body={'raw': raw_message}
+                ).execute()
+                
+                results['success'].append({
+                    'email': contact['email'],
+                    'person': contact['person'],
+                    'company': contact['company']
+                })
+                
+                # Small delay to avoid rate limiting
+                time.sleep(0.5)
+                
+            except Exception as e:
+                results['failed'].append({
+                    'email': contact['email'],
+                    'person': contact['person'],
+                    'company': contact['company'],
+                    'error': str(e)
+                })
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'total_sent': len(results['success']),
+            'total_failed': len(results['failed'])
+        })
+        
+    except Exception as e:
+        print(f"Error in send_bulk_emails: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

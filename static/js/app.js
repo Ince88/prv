@@ -91,6 +91,7 @@ function initializeApp() {
     const contactSearchBtn = document.getElementById('contact-search-btn');
     const setupBtn = document.getElementById('setup-btn');
     const emailInput = document.getElementById('email-input');
+    const bulkEmailBtn = document.getElementById('bulk-email-btn');
     
     // Check API configuration
     checkAPIConfiguration();
@@ -129,6 +130,7 @@ function initializeApp() {
     companyResearchBtn.addEventListener('click', openCompanyResearch);
     contactSearchBtn.addEventListener('click', openContactSearch);
     setupBtn.addEventListener('click', openSetupWizard);
+    bulkEmailBtn.addEventListener('click', openBulkEmailModal);
     
     // Focus input
     messageInput.focus();
@@ -2446,4 +2448,419 @@ if (!document.getElementById('toast-animations')) {
         }
     `;
     document.head.appendChild(style);
+}
+
+// ============================================================================
+// BULK EMAIL FUNCTIONALITY
+// ============================================================================
+
+let bulkEmailContacts = [];
+
+function openBulkEmailModal() {
+    // Check Gmail connection first
+    const gmailToken = sessionStorage.getItem('gmail_connected');
+    
+    const modal = document.createElement('div');
+    modal.id = 'bulk-email-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        backdrop-filter: blur(5px);
+        padding: 20px;
+        overflow-y: auto;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        padding: 32px;
+        max-width: 900px;
+        width: 95%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h2 style="margin: 0; color: #2c3e50; font-size: 26px;">📤 Bulk Email Sender</h2>
+            <button onclick="closeBulkEmailModal()" style="
+                background: none;
+                border: none;
+                font-size: 28px;
+                cursor: pointer;
+                color: #95a5a6;
+                line-height: 1;
+                padding: 0;
+                width: 32px;
+                height: 32px;
+            ">×</button>
+        </div>
+        
+        <!-- Instructions -->
+        <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+            <div style="font-weight: 600; color: #1976d2; margin-bottom: 8px;">📋 Instructions:</div>
+            <ul style="margin: 0; padding-left: 20px; color: #424242; line-height: 1.8; font-size: 14px;">
+                <li>Upload an Excel file (.xlsx, .xls) or CSV file</li>
+                <li>Required columns: <strong>Company</strong>, <strong>Person</strong>, <strong>Email</strong></li>
+                <li>Column names are flexible (e.g., "Company Name", "Cégnév", etc.)</li>
+                <li>Use placeholders in your email: <code>{{company}}</code>, <code>{{person}}</code>, <code>{{email}}</code></li>
+                <li>✨ <strong>Emails are sent in HTML format with PRV logo embedded</strong></li>
+                <li>Preview contacts before sending</li>
+            </ul>
+        </div>
+        
+        <!-- Step 1: Upload File -->
+        <div class="bulk-step" style="margin-bottom: 24px; padding: 20px; background: #f8f9fa; border-radius: 12px; border: 2px solid #e9ecef;">
+            <h3 style="margin: 0 0 16px 0; color: #2c3e50; font-size: 18px;">Step 1: Upload Contact List</h3>
+            <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" style="display: none;" onchange="handleFileUpload(event)">
+            <button onclick="document.getElementById('excel-file-input').click()" style="
+                padding: 12px 24px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(102,126,234,0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                📁 Choose Excel/CSV File
+            </button>
+            <div id="file-status" style="margin-top: 12px; font-size: 14px; color: #666;"></div>
+            <div id="contacts-preview" style="margin-top: 16px; display: none;"></div>
+        </div>
+        
+        <!-- Step 2: Compose Email -->
+        <div class="bulk-step" style="margin-bottom: 24px; padding: 20px; background: #f8f9fa; border-radius: 12px; border: 2px solid #e9ecef; opacity: 0.6; pointer-events: none;" id="compose-section">
+            <h3 style="margin: 0 0 16px 0; color: #2c3e50; font-size: 18px;">Step 2: Compose Email Template</h3>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                    Your Name (Display Name):
+                </label>
+                <input type="text" id="sender-name" placeholder="e.g., Czechner Ince or Ince Czechner" value="Czechner Ince" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px solid #dee2e6;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    box-sizing: border-box;
+                ">
+                <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                    This is how your name will appear to recipients
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                    Subject Line:
+                </label>
+                <input type="text" id="email-subject" placeholder="e.g., Hello {{person}} from {{company}}" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px solid #dee2e6;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    box-sizing: border-box;
+                ">
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                    Email Body:
+                </label>
+                <textarea id="email-body" placeholder="Dear {{person}},
+
+I hope this email finds you well. I wanted to reach out to you from {{company}}...
+
+Best regards" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px solid #dee2e6;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-family: inherit;
+                    min-height: 150px;
+                    box-sizing: border-box;
+                    resize: vertical;
+                "></textarea>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                    Email Signature (with PRV Logo):
+                </label>
+                <textarea id="email-signature" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px solid #dee2e6;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-family: Arial, sans-serif;
+                    min-height: 120px;
+                    box-sizing: border-box;
+                    resize: vertical;
+                ">Czechner Ince
+Sales Manager
++36 20-260-3335
+ince@prv.hu
+www.prv.hu</textarea>
+                <div style="font-size: 12px; color: #28a745; margin-top: 4px; font-weight: 600;">
+                    ✅ PRV logo will be automatically added next to your signature
+                </div>
+                <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                    Edit the text above as needed. You can also use placeholders like {{person}} or {{company}}
+                </div>
+            </div>
+            
+            <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 8px; font-size: 13px; color: #856404;">
+                <strong>💡 Tip:</strong> Use placeholders like <code>{{company}}</code>, <code>{{person}}</code>, and <code>{{email}}</code> to personalize each email automatically.
+            </div>
+        </div>
+        
+        <!-- Step 3: Send -->
+        <div class="bulk-step" style="padding: 20px; background: #f8f9fa; border-radius: 12px; border: 2px solid #e9ecef; opacity: 0.6; pointer-events: none;" id="send-section">
+            <h3 style="margin: 0 0 16px 0; color: #2c3e50; font-size: 18px;">Step 3: Send Emails</h3>
+            <div id="send-status" style="margin-bottom: 16px; font-size: 14px;"></div>
+            <button onclick="sendBulkEmails()" id="send-bulk-btn" style="
+                padding: 14px 32px;
+                background: #27ae60;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            " onmouseover="this.style.background='#229954'" onmouseout="this.style.background='#27ae60'">
+                📨 Send Emails to All Contacts
+            </button>
+        </div>
+        
+        <!-- Results -->
+        <div id="results-section" style="margin-top: 24px; display: none;"></div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // Close on overlay click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeBulkEmailModal();
+        }
+    });
+}
+
+function closeBulkEmailModal() {
+    const modal = document.getElementById('bulk-email-modal');
+    if (modal) {
+        modal.remove();
+    }
+    bulkEmailContacts = [];
+}
+
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const fileStatus = document.getElementById('file-status');
+    fileStatus.innerHTML = '⏳ Uploading and parsing file...';
+    fileStatus.style.color = '#ff9800';
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/upload_excel', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            bulkEmailContacts = data.contacts;
+            
+            fileStatus.innerHTML = `✅ Successfully loaded ${data.total_contacts} contacts!`;
+            fileStatus.style.color = '#27ae60';
+            
+            // Show preview
+            const preview = document.getElementById('contacts-preview');
+            preview.style.display = 'block';
+            preview.innerHTML = `
+                <div style="background: white; border: 2px solid #27ae60; border-radius: 8px; padding: 16px; max-height: 200px; overflow-y: auto;">
+                    <div style="font-weight: 600; color: #27ae60; margin-bottom: 12px;">
+                        Preview (first 10 contacts):
+                    </div>
+                    ${bulkEmailContacts.slice(0, 10).map((contact, idx) => `
+                        <div style="padding: 8px; margin-bottom: 8px; background: #f8f9fa; border-radius: 6px; font-size: 13px;">
+                            <strong>${idx + 1}.</strong> ${contact.person} (${contact.company}) - ${contact.email}
+                        </div>
+                    `).join('')}
+                    ${data.total_contacts > 10 ? `
+                        <div style="padding: 8px; color: #666; font-size: 13px; text-align: center;">
+                            ... and ${data.total_contacts - 10} more contacts
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            // Enable compose section
+            const composeSection = document.getElementById('compose-section');
+            composeSection.style.opacity = '1';
+            composeSection.style.pointerEvents = 'auto';
+            
+            // Enable send section
+            const sendSection = document.getElementById('send-section');
+            sendSection.style.opacity = '1';
+            sendSection.style.pointerEvents = 'auto';
+            
+            // Update send status
+            const sendStatus = document.getElementById('send-status');
+            sendStatus.innerHTML = `<span style="color: #27ae60;">✅ Ready to send to ${data.total_contacts} contacts</span>`;
+            
+            showToast(`✅ Successfully loaded ${data.total_contacts} contacts!`, 'success');
+        } else {
+            fileStatus.innerHTML = `❌ Error: ${data.error}`;
+            fileStatus.style.color = '#e74c3c';
+            showToast(`❌ ${data.error}`, 'error');
+        }
+    } catch (error) {
+        fileStatus.innerHTML = `❌ Error: ${error.message}`;
+        fileStatus.style.color = '#e74c3c';
+        showToast(`❌ Failed to upload file: ${error.message}`, 'error');
+    }
+}
+
+async function sendBulkEmails() {
+    const senderName = document.getElementById('sender-name').value.trim();
+    const subject = document.getElementById('email-subject').value.trim();
+    const body = document.getElementById('email-body').value.trim();
+    const signature = document.getElementById('email-signature').value.trim();
+    
+    if (!subject || !body) {
+        showToast('❌ Please fill in both subject and body!', 'error');
+        return;
+    }
+    
+    if (bulkEmailContacts.length === 0) {
+        showToast('❌ No contacts loaded. Please upload a file first.', 'error');
+        return;
+    }
+    
+    // Confirm before sending
+    if (!confirm(`Are you sure you want to send ${bulkEmailContacts.length} emails?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    const sendBtn = document.getElementById('send-bulk-btn');
+    const originalText = sendBtn.innerHTML;
+    sendBtn.innerHTML = '⏳ Sending...';
+    sendBtn.disabled = true;
+    
+    const resultsSection = document.getElementById('results-section');
+    resultsSection.style.display = 'block';
+    resultsSection.innerHTML = `
+        <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; border: 2px solid #667eea;">
+            <h3 style="margin: 0 0 16px 0; color: #667eea;">📊 Sending Progress</h3>
+            <div style="background: white; border-radius: 8px; padding: 16px;">
+                <div style="font-size: 14px; color: #666; margin-bottom: 8px;">
+                    ⏳ Sending emails... Please wait...
+                </div>
+                <div style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                    <div style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.3s;" id="progress-bar"></div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/api/send_bulk_emails', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                sender_name: senderName,
+                subject: subject,
+                body: body,
+                signature: signature
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Show results
+            resultsSection.innerHTML = `
+                <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; border: 2px solid #27ae60;">
+                    <h3 style="margin: 0 0 16px 0; color: #27ae60;">✅ Sending Complete!</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div style="background: #d4edda; padding: 16px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 32px; font-weight: bold; color: #27ae60;">${data.total_sent}</div>
+                            <div style="font-size: 14px; color: #155724;">Successfully Sent</div>
+                        </div>
+                        <div style="background: #f8d7da; padding: 16px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 32px; font-weight: bold; color: #e74c3c;">${data.total_failed}</div>
+                            <div style="font-size: 14px; color: #721c24;">Failed</div>
+                        </div>
+                    </div>
+                    
+                    ${data.results.failed.length > 0 ? `
+                        <div style="background: white; border-radius: 8px; padding: 16px; max-height: 200px; overflow-y: auto;">
+                            <div style="font-weight: 600; color: #e74c3c; margin-bottom: 12px;">❌ Failed Emails:</div>
+                            ${data.results.failed.map(f => `
+                                <div style="padding: 8px; margin-bottom: 8px; background: #f8d7da; border-radius: 6px; font-size: 13px;">
+                                    <strong>${f.person}</strong> (${f.email})<br>
+                                    <span style="color: #721c24;">Error: ${f.error}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            showToast(`✅ Successfully sent ${data.total_sent} emails!`, 'success');
+        } else {
+            resultsSection.innerHTML = `
+                <div style="background: #f8d7da; border: 2px solid #e74c3c; border-radius: 12px; padding: 20px;">
+                    <h3 style="margin: 0 0 12px 0; color: #e74c3c;">❌ Error</h3>
+                    <p style="margin: 0; color: #721c24;">${data.error}</p>
+                </div>
+            `;
+            
+            // Check if needs Gmail authorization
+            if (data.needs_auth) {
+                if (confirm('Gmail not connected. Would you like to connect now?')) {
+                    closeBulkEmailModal();
+                    await connectGmail();
+                }
+            }
+            
+            showToast(`❌ ${data.error}`, 'error');
+        }
+    } catch (error) {
+        resultsSection.innerHTML = `
+            <div style="background: #f8d7da; border: 2px solid #e74c3c; border-radius: 12px; padding: 20px;">
+                <h3 style="margin: 0 0 12px 0; color: #e74c3c;">❌ Error</h3>
+                <p style="margin: 0; color: #721c24;">${error.message}</p>
+            </div>
+        `;
+        showToast(`❌ Failed to send emails: ${error.message}`, 'error');
+    } finally {
+        sendBtn.innerHTML = originalText;
+        sendBtn.disabled = false;
+    }
 }

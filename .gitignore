@@ -38,6 +38,9 @@ flask.log
 *.tmp
 *.bak
 
+# Uploads folder (user-uploaded Excel files)
+uploads/
+
 # Git
 .git/
 
