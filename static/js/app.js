@@ -53,6 +53,36 @@ PRINT HIRDETÉS JAVASLAT (vállalati kiadvány):
 KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég beszállítójuk, már kapták a meghívót hogy szerepeljenek a print és digitális kiadványban. Fizetnek a megjelenésért (hirdetés/PR cikk).`
 };
 
+// Ensure companyResearchPrompt exists (migration for existing users)
+if (!promptSettings.companyResearchPrompt) {
+    promptSettings.companyResearchPrompt = `Keress meg MINDEN elérhető adatot erről a magyar cégről: {{company_name}}{{website_info}}
+
+Add meg MAGYARUL:
+
+📞 KAPCSOLATI ADATOK:
+- Pontos cégnév
+- Teljes cím (utca, házszám, irányítószám, település)
+- Telefonszám(ok), email, weboldal
+- Adószám, cégjegyzékszám
+- Főtevékenység (TEÁOR)
+- Alapítás éve, tulajdonos/ügyvezető
+- Alkalmazottak száma, árbevétel
+
+📊 CÉG PROFIL:
+- Tevékenységi kör, fő termékek/szolgáltatások
+- Iparág, célpiac
+- B2B/B2C profil
+
+PRINT HIRDETÉS JAVASLAT (vállalati kiadvány):
+- Javasolt méret (1/4, 1/2, egész oldal)
+- Vizuális stílus (modern/klasszikus)
+- Fő üzenet, CTA
+- Layout ötlet (termékfotó/logo/referenciák)
+
+KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég beszállítójuk, már kapták a meghívót hogy szerepeljenek a print és digitális kiadványban. Fizetnek a megjelenésért (hirdetés/PR cikk).`;
+    localStorage.setItem('promptSettings', JSON.stringify(promptSettings));
+}
+
 function saveEmailPrompts() {
     localStorage.setItem('emailPrompts', JSON.stringify(emailPrompts));
 }
