@@ -8,8 +8,32 @@ let currentEmailAddress = '';
 // Email prompts - stored in localStorage (starts empty so users can customize)
 let emailPrompts = JSON.parse(localStorage.getItem('emailPrompts')) || [];
 
+// Prompt settings - stored in localStorage
+let promptSettings = JSON.parse(localStorage.getItem('promptSettings')) || {
+    userName: 'Czechner Ince',
+    userEmail: 'ince@prv.hu',
+    userRole: 'PRV Sales Manager',
+    businessModel: `- PRV creates corporate publications for large companies (project companies)
+- The project company sends invitations to their suppliers to participate in the publication
+- PRV forwards this invitation, then contacts suppliers via PHONE/EMAIL
+- THIS IS WARM OUTREACH - the supplier already received an invitation from the project company!
+- Suppliers PAY for their appearance (as advertisement or PR article)
+- Format: PRINTED and DIGITAL publication
+- Benefit: visibility to the project company and its supply chain, business opportunities`,
+    communicationRules: `- IF suggesting a meeting: ALWAYS suggest phone call or online meeting (Teams/Google Meet)
+- NEVER suggest in-person meetings
+- Reference the project company's invitation when appropriate`,
+    toneGuidance: 'Natural, friendly, but professional',
+    contextAwareGuidance: `If they're waiting for materials, asking a question, or providing info - respond appropriately. Don't always push for calls.`,
+    naturalGuidance: 'Read the conversation flow and respond like a real person would.'
+};
+
 function saveEmailPrompts() {
     localStorage.setItem('emailPrompts', JSON.stringify(emailPrompts));
+}
+
+function savePromptSettings() {
+    localStorage.setItem('promptSettings', JSON.stringify(promptSettings));
 }
 
 // User mapping for email context
@@ -544,27 +568,20 @@ function openChatGPTWithEmailContext(userMessage) {
         lastEmailLanguage = "Hungarian";
     }
     
-    // Get current user info from window variable
-    const userInfo = getUserInfo();
+    // Use saved prompt settings for user info (or fall back to getUserInfo)
+    const userName = promptSettings.userName || getUserInfo().fullName;
+    const userEmail = promptSettings.userEmail || getUserInfo().email;
     
-    // Build the full prompt
+    // Build the full prompt using saved settings
     let prompt = `CONTEXT:
-- User: ${userInfo.fullName} (${userInfo.email}), PRV Sales Manager
+- User: ${userName} (${userEmail}), ${promptSettings.userRole}
 - Email conversation with: ${currentEmailAddress}
 
 BUSINESS MODEL (for your understanding):
-- PRV creates corporate publications for large companies (project companies)
-- The project company sends invitations to their suppliers to participate in the publication
-- PRV forwards this invitation, then contacts suppliers via PHONE/EMAIL
-- THIS IS WARM OUTREACH - the supplier already received an invitation from the project company!
-- Suppliers PAY for their appearance (as advertisement or PR article)
-- Format: PRINTED and DIGITAL publication
-- Benefit: visibility to the project company and its supply chain, business opportunities
+${promptSettings.businessModel}
 
 COMMUNICATION RULES (only suggest when relevant):
-- IF suggesting a meeting: ALWAYS suggest phone call or online meeting (Teams/Google Meet)
-- NEVER suggest in-person meetings
-- Reference the project company's invitation when appropriate
+${promptSettings.communicationRules}
 
 EMAIL HISTORY:
 ${'='.repeat(60)}
@@ -592,7 +609,7 @@ ${'-'.repeat(60)}
     
     prompt += `\n\n${'='.repeat(60)}
 
-${userInfo.fullName.toUpperCase()}'S REQUEST:
+${userName.toUpperCase()}'S REQUEST:
 ${userMessage}
 
 ${'='.repeat(60)}
@@ -602,13 +619,13 @@ IMPORTANT INSTRUCTIONS:
    - If language is "Hungarian" → write the ENTIRE email in Hungarian
    - If language is "English" → write the ENTIRE email in English
    
-2. **TONE**: Natural, friendly, but professional
+2. **TONE**: ${promptSettings.toneGuidance}
 
 3. **MEETINGS**: Only suggest meetings if it makes sense in the context. Don't force it.
 
-4. **CONTEXT-AWARE**: If they're waiting for materials, asking a question, or providing info - respond appropriately. Don't always push for calls.
+4. **CONTEXT-AWARE**: ${promptSettings.contextAwareGuidance}
 
-5. **BE NATURAL**: Read the conversation flow and respond like a real person would.
+5. **BE NATURAL**: ${promptSettings.naturalGuidance}
 
 Now, provide a concrete, practical email response IN ${lastEmailLanguage.toUpperCase()}!`;
     
@@ -1932,6 +1949,40 @@ function openSetupWizard() {
                 </div>
             </div>
             
+            <!-- Prompt Settings Section -->
+            <div style="margin-bottom: 32px; padding: 20px; background: #fff8e1; border-radius: 8px; border: 2px solid #ffc107;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <h3 style="margin: 0; color: #2c3e50; font-size: 18px;">💬 Email Prompt Settings</h3>
+                    <span style="
+                        padding: 4px 12px;
+                        background: #ffc107;
+                        color: white;
+                        border-radius: 12px;
+                        font-size: 12px;
+                        font-weight: 600;
+                    ">Customizable</span>
+                </div>
+                
+                <div style="margin-bottom: 12px; font-size: 14px; color: #666;">
+                    These settings control the prompt used when ChatGPT generates email responses based on your email history.
+                </div>
+                
+                <button onclick="openPromptSettingsModal()" style="
+                    width: 100%;
+                    padding: 12px 24px;
+                    background: #ffc107;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 15px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                " onmouseover="this.style.background='#ffb300'" onmouseout="this.style.background='#ffc107'">
+                    ⚙️ Configure Prompt Settings
+                </button>
+            </div>
+            
             <!-- Action Buttons -->
             <div style="display: flex; gap: 12px; justify-content: flex-end;">
                 <button onclick="this.closest('[style*=fixed]').remove()" style="
@@ -2359,6 +2410,321 @@ function closeEmojiPicker() {
     const picker = document.getElementById('emoji-picker');
     if (picker) {
         picker.remove();
+    }
+}
+
+// ============================================================================
+// PROMPT SETTINGS MODAL
+// ============================================================================
+
+function openPromptSettingsModal() {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001;
+        backdrop-filter: blur(5px);
+        padding: 20px;
+        overflow-y: auto;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        padding: 32px;
+        max-width: 900px;
+        width: 95%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h2 style="margin: 0; color: #2c3e50; font-size: 26px;">💬 Email Prompt Settings</h2>
+            <button onclick="closePromptSettingsModal()" style="
+                background: none;
+                border: none;
+                font-size: 28px;
+                cursor: pointer;
+                color: #95a5a6;
+                line-height: 1;
+                padding: 0;
+                width: 32px;
+                height: 32px;
+            ">×</button>
+        </div>
+        
+        <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+            <div style="font-weight: 600; color: #1976d2; margin-bottom: 8px;">ℹ️ About These Settings</div>
+            <div style="font-size: 14px; color: #424242; line-height: 1.6;">
+                These settings control the prompt that gets sent to ChatGPT when you load email history and request a response. 
+                Customize them to match your business model, communication style, and preferences.
+            </div>
+        </div>
+        
+        <!-- User Name -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Your Name:
+            </label>
+            <input type="text" id="prompt-user-name" value="${promptSettings.userName}" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                box-sizing: border-box;
+            " placeholder="e.g., Czechner Ince">
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                Your full name as it appears in emails
+            </div>
+        </div>
+        
+        <!-- User Email -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Your Email:
+            </label>
+            <input type="email" id="prompt-user-email" value="${promptSettings.userEmail}" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                box-sizing: border-box;
+            " placeholder="e.g., ince@prv.hu">
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                Your work email address
+            </div>
+        </div>
+        
+        <!-- User Role -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Your Role:
+            </label>
+            <input type="text" id="prompt-user-role" value="${promptSettings.userRole}" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                box-sizing: border-box;
+            " placeholder="e.g., PRV Sales Manager">
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                How ChatGPT should refer to your position
+            </div>
+        </div>
+        
+        <!-- Business Model -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Business Model Explanation:
+            </label>
+            <textarea id="prompt-business-model" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 150px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Explain your business model...">${promptSettings.businessModel}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                Explain how your business works so ChatGPT understands the context
+            </div>
+        </div>
+        
+        <!-- Communication Rules -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Communication Rules:
+            </label>
+            <textarea id="prompt-comm-rules" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 100px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Communication guidelines...">${promptSettings.communicationRules}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                Specific rules ChatGPT should follow (e.g., only suggest phone meetings, never in-person)
+            </div>
+        </div>
+        
+        <!-- Tone Guidance -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Tone & Style:
+            </label>
+            <input type="text" id="prompt-tone" value="${promptSettings.toneGuidance}" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                box-sizing: border-box;
+            " placeholder="e.g., Natural, friendly, but professional">
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                The overall tone for email responses
+            </div>
+        </div>
+        
+        <!-- Context-Aware Guidance -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Context-Aware Instructions:
+            </label>
+            <textarea id="prompt-context" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 80px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="How to be context-aware...">${promptSettings.contextAwareGuidance}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                Instructions for adapting to different conversation contexts
+            </div>
+        </div>
+        
+        <!-- Natural Guidance -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Natural Communication Guide:
+            </label>
+            <input type="text" id="prompt-natural" value="${promptSettings.naturalGuidance}" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                box-sizing: border-box;
+            " placeholder="e.g., Read the conversation flow and respond like a real person would">
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                Guidance for natural, human-like responses
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 32px;">
+            <button onclick="resetPromptSettings()" style="
+                padding: 12px 24px;
+                background: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            " onmouseover="this.style.background='#c0392b'" onmouseout="this.style.background='#e74c3c'">
+                🔄 Reset to Defaults
+            </button>
+            
+            <button onclick="closePromptSettingsModal()" style="
+                padding: 12px 24px;
+                background: #95a5a6;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                font-weight: 600;
+                cursor: pointer;
+            ">Cancel</button>
+            
+            <button onclick="savePromptSettingsFromModal()" style="
+                padding: 12px 24px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                font-weight: 600;
+                cursor: pointer;
+            ">💾 Save Settings</button>
+        </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    window.promptSettingsModal = modal;
+    
+    // Close on overlay click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closePromptSettingsModal();
+        }
+    });
+}
+
+function closePromptSettingsModal() {
+    if (window.promptSettingsModal) {
+        window.promptSettingsModal.remove();
+        window.promptSettingsModal = null;
+    }
+}
+
+function savePromptSettingsFromModal() {
+    promptSettings.userName = document.getElementById('prompt-user-name').value.trim();
+    promptSettings.userEmail = document.getElementById('prompt-user-email').value.trim();
+    promptSettings.userRole = document.getElementById('prompt-user-role').value.trim();
+    promptSettings.businessModel = document.getElementById('prompt-business-model').value.trim();
+    promptSettings.communicationRules = document.getElementById('prompt-comm-rules').value.trim();
+    promptSettings.toneGuidance = document.getElementById('prompt-tone').value.trim();
+    promptSettings.contextAwareGuidance = document.getElementById('prompt-context').value.trim();
+    promptSettings.naturalGuidance = document.getElementById('prompt-natural').value.trim();
+    
+    savePromptSettings();
+    showToast('✅ Prompt settings saved successfully!', 'success');
+    closePromptSettingsModal();
+}
+
+function resetPromptSettings() {
+    if (confirm('Are you sure you want to reset all prompt settings to defaults? This cannot be undone.')) {
+        promptSettings = {
+            userName: 'Czechner Ince',
+            userEmail: 'ince@prv.hu',
+            userRole: 'PRV Sales Manager',
+            businessModel: `- PRV creates corporate publications for large companies (project companies)
+- The project company sends invitations to their suppliers to participate in the publication
+- PRV forwards this invitation, then contacts suppliers via PHONE/EMAIL
+- THIS IS WARM OUTREACH - the supplier already received an invitation from the project company!
+- Suppliers PAY for their appearance (as advertisement or PR article)
+- Format: PRINTED and DIGITAL publication
+- Benefit: visibility to the project company and its supply chain, business opportunities`,
+            communicationRules: `- IF suggesting a meeting: ALWAYS suggest phone call or online meeting (Teams/Google Meet)
+- NEVER suggest in-person meetings
+- Reference the project company's invitation when appropriate`,
+            toneGuidance: 'Natural, friendly, but professional',
+            contextAwareGuidance: `If they're waiting for materials, asking a question, or providing info - respond appropriately. Don't always push for calls.`,
+            naturalGuidance: 'Read the conversation flow and respond like a real person would.'
+        };
+        
+        savePromptSettings();
+        showToast('✅ Prompt settings reset to defaults!', 'success');
+        
+        // Refresh the modal
+        closePromptSettingsModal();
+        setTimeout(() => openPromptSettingsModal(), 100);
     }
 }
 
