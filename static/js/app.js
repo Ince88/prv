@@ -12,20 +12,54 @@ let emailPrompts = JSON.parse(localStorage.getItem('emailPrompts')) || [];
 let promptSettings = JSON.parse(localStorage.getItem('promptSettings')) || {
     userName: 'Czechner Ince',
     userEmail: 'ince@prv.hu',
-    userRole: 'PRV Sales Manager',
-    businessModel: `- PRV creates corporate publications for large companies (project companies)
-- The project company sends invitations to their suppliers to participate in the publication
-- PRV forwards this invitation, then contacts suppliers via PHONE/EMAIL
-- THIS IS WARM OUTREACH - the supplier already received an invitation from the project company!
-- Suppliers PAY for their appearance (as advertisement or PR article)
-- Format: PRINTED and DIGITAL publication
-- Benefit: visibility to the project company and its supply chain, business opportunities`,
-    communicationRules: `- IF suggesting a meeting: ALWAYS suggest phone call or online meeting (Teams/Google Meet)
-- NEVER suggest in-person meetings
-- Reference the project company's invitation when appropriate`,
-    toneGuidance: 'Natural, friendly, but professional',
-    contextAwareGuidance: `If they're waiting for materials, asking a question, or providing info - respond appropriately. Don't always push for calls.`,
-    naturalGuidance: 'Read the conversation flow and respond like a real person would.',
+    roleAndGoal: `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
+
+Your primary goal:
+- Be clear, concise and professional.
+- Respect the time of senior managers and executives.
+- Move the conversation efficiently towards a decision (yes/no, call, next step).`,
+    businessModel: `- PRV creates corporate publications for large companies (project companies).
+- The project company sends invitations to their suppliers to participate in the publication.
+- PRV forwards this invitation, then contacts suppliers via PHONE/EMAIL.
+- THIS IS WARM OUTREACH – the supplier already received an invitation from the project company.
+- Suppliers PAY for their appearance (as advertisement or PR article).
+- Format: PRINTED and DIGITAL publication.
+- Benefit: visibility to the project company and its supply chain, business opportunities.`,
+    toneAndStyle: `- Default tone: **calm, confident, neutral, businesslike**.
+- Be **short and to the point**. Avoid small talk and long introductions.
+- Be **polite but not overly friendly**. No flattery, no effusive praise.
+- Use **clear, simple sentences** (like consulting-style email).
+- Avoid exclamation marks unless truly necessary.
+- Do NOT use emojis, gifs, or very emotional language.
+- If the other party writes in a more informal tone, you may be *slightly* more relaxed but stay professional.`,
+    lengthGuidance: `- Aim for **1–3 short paragraphs** OR **3–7 bullet points**.
+- Only write more if absolutely necessary (complex information, summary, etc.).
+- Remove redundant phrases and filler ("I hope this email finds you well", "Have a wonderful day ahead", etc.).`,
+    languageAdaptation: `- ALWAYS reply in the **same language** and approximate formality level as the latest email (English, German, Hungarian, etc.).
+- ALWAYS check the previous emails and mirror the **structure and level of formality**, but:
+  - If the previous email is emotional or informal, you stay calm and professional.
+  - If the previous email is very short, keep your reply short as well.`,
+    meetingsAndNextSteps: `- IF suggesting a meeting: ONLY suggest **phone call** or **online meeting** (Teams/Google Meet).
+- NEVER suggest in-person meetings.
+- Propose **2–3 specific time windows** when useful, or ask for the recipient's availability.
+- When relevant, **reference the project company's original invitation** ("As mentioned in the invitation from [Project Company]…").`,
+    contentGuidelines: `- Clarify the offer in **one or two sentences** maximum.
+- Emphasize benefits **for the supplier** briefly (visibility, positioning with the project company, etc.).
+- If replying to an objection, acknowledge it briefly, then respond in a **solution-oriented and concise** way.
+- If information is missing, ask **specific, targeted questions** (prefer bullet points).`,
+    whatToAvoid: `- Do NOT be overly enthusiastic or "salesy".
+- Do NOT write long, story-like emails.
+- Do NOT apologize excessively. One short apology is enough if needed.
+- Do NOT invent details about PRV or the project company.
+- Do NOT change the commercial terms unless explicitly instructed in the email history.`,
+    emailStructure: `- Short, clear subject line if you need to suggest one.
+- Very brief opening (1 sentence maximum).
+- Core message in 1–3 short paragraphs or bullet points.
+- Short closing line and signature (if not already defined in the thread).`,
+    communicationRules: `- VERY IMPORTANT: ALWAYS CHECK THE PREVIOUS EMAILS TONES AND REPLY ACCORDING TO THAT.
+- IF suggesting a meeting: ALWAYS suggest phone call or online meeting (Teams/Google Meet).
+- NEVER suggest in-person meetings.
+- Reference the project company's invitation when appropriate.`,
     companyResearchPrompt: `Keress meg MINDEN elérhető adatot erről a magyar cégről: {{company_name}}{{website_info}}
 
 Add meg MAGYARUL:
@@ -53,7 +87,9 @@ PRINT HIRDETÉS JAVASLAT (vállalati kiadvány):
 KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég beszállítójuk, már kapták a meghívót hogy szerepeljenek a print és digitális kiadványban. Fizetnek a megjelenésért (hirdetés/PR cikk).`
 };
 
-// Ensure companyResearchPrompt exists (migration for existing users)
+// Migration for existing users - ensure all new fields exist
+let needsMigration = false;
+
 if (!promptSettings.companyResearchPrompt) {
     promptSettings.companyResearchPrompt = `Keress meg MINDEN elérhető adatot erről a magyar cégről: {{company_name}}{{website_info}}
 
@@ -80,6 +116,88 @@ PRINT HIRDETÉS JAVASLAT (vállalati kiadvány):
 - Layout ötlet (termékfotó/logo/referenciák)
 
 KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég beszállítójuk, már kapták a meghívót hogy szerepeljenek a print és digitális kiadványban. Fizetnek a megjelenésért (hirdetés/PR cikk).`;
+    needsMigration = true;
+}
+
+if (!promptSettings.roleAndGoal) {
+    promptSettings.roleAndGoal = `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
+
+Your primary goal:
+- Be clear, concise and professional.
+- Respect the time of senior managers and executives.
+- Move the conversation efficiently towards a decision (yes/no, call, next step).`;
+    needsMigration = true;
+}
+
+if (!promptSettings.toneAndStyle) {
+    promptSettings.toneAndStyle = `- Default tone: **calm, confident, neutral, businesslike**.
+- Be **short and to the point**. Avoid small talk and long introductions.
+- Be **polite but not overly friendly**. No flattery, no effusive praise.
+- Use **clear, simple sentences** (like consulting-style email).
+- Avoid exclamation marks unless truly necessary.
+- Do NOT use emojis, gifs, or very emotional language.
+- If the other party writes in a more informal tone, you may be *slightly* more relaxed but stay professional.`;
+    needsMigration = true;
+}
+
+if (!promptSettings.lengthGuidance) {
+    promptSettings.lengthGuidance = `- Aim for **1–3 short paragraphs** OR **3–7 bullet points**.
+- Only write more if absolutely necessary (complex information, summary, etc.).
+- Remove redundant phrases and filler ("I hope this email finds you well", "Have a wonderful day ahead", etc.).`;
+    needsMigration = true;
+}
+
+if (!promptSettings.languageAdaptation) {
+    promptSettings.languageAdaptation = `- ALWAYS reply in the **same language** and approximate formality level as the latest email (English, German, Hungarian, etc.).
+- ALWAYS check the previous emails and mirror the **structure and level of formality**, but:
+  - If the previous email is emotional or informal, you stay calm and professional.
+  - If the previous email is very short, keep your reply short as well.`;
+    needsMigration = true;
+}
+
+if (!promptSettings.meetingsAndNextSteps) {
+    promptSettings.meetingsAndNextSteps = `- IF suggesting a meeting: ONLY suggest **phone call** or **online meeting** (Teams/Google Meet).
+- NEVER suggest in-person meetings.
+- Propose **2–3 specific time windows** when useful, or ask for the recipient's availability.
+- When relevant, **reference the project company's original invitation** ("As mentioned in the invitation from [Project Company]…").`;
+    needsMigration = true;
+}
+
+if (!promptSettings.contentGuidelines) {
+    promptSettings.contentGuidelines = `- Clarify the offer in **one or two sentences** maximum.
+- Emphasize benefits **for the supplier** briefly (visibility, positioning with the project company, etc.).
+- If replying to an objection, acknowledge it briefly, then respond in a **solution-oriented and concise** way.
+- If information is missing, ask **specific, targeted questions** (prefer bullet points).`;
+    needsMigration = true;
+}
+
+if (!promptSettings.whatToAvoid) {
+    promptSettings.whatToAvoid = `- Do NOT be overly enthusiastic or "salesy".
+- Do NOT write long, story-like emails.
+- Do NOT apologize excessively. One short apology is enough if needed.
+- Do NOT invent details about PRV or the project company.
+- Do NOT change the commercial terms unless explicitly instructed in the email history.`;
+    needsMigration = true;
+}
+
+if (!promptSettings.emailStructure) {
+    promptSettings.emailStructure = `- Short, clear subject line if you need to suggest one.
+- Very brief opening (1 sentence maximum).
+- Core message in 1–3 short paragraphs or bullet points.
+- Short closing line and signature (if not already defined in the thread).`;
+    needsMigration = true;
+}
+
+// Update communicationRules if it has the old format
+if (promptSettings.communicationRules && !promptSettings.communicationRules.includes('VERY IMPORTANT')) {
+    promptSettings.communicationRules = `- VERY IMPORTANT: ALWAYS CHECK THE PREVIOUS EMAILS TONES AND REPLY ACCORDING TO THAT.
+- IF suggesting a meeting: ALWAYS suggest phone call or online meeting (Teams/Google Meet).
+- NEVER suggest in-person meetings.
+- Reference the project company's invitation when appropriate.`;
+    needsMigration = true;
+}
+
+if (needsMigration) {
     localStorage.setItem('promptSettings', JSON.stringify(promptSettings));
 }
 
@@ -629,13 +747,37 @@ function openChatGPTWithEmailContext(userMessage) {
     
     // Build the full prompt using saved settings
     let prompt = `CONTEXT:
-- User: ${userName} (${userEmail}), ${promptSettings.userRole}
+- User: ${userName} (${userEmail})
 - Email conversation with: ${currentEmailAddress}
+
+ROLE & GOAL:
+${promptSettings.roleAndGoal}
 
 BUSINESS MODEL (for your understanding):
 ${promptSettings.businessModel}
 
-COMMUNICATION RULES (only suggest when relevant):
+TONE & STYLE:
+${promptSettings.toneAndStyle}
+
+LENGTH:
+${promptSettings.lengthGuidance}
+
+LANGUAGE & ADAPTATION:
+${promptSettings.languageAdaptation}
+
+MEETINGS & NEXT STEPS:
+${promptSettings.meetingsAndNextSteps}
+
+CONTENT GUIDELINES:
+${promptSettings.contentGuidelines}
+
+WHAT TO AVOID:
+${promptSettings.whatToAvoid}
+
+EMAIL STRUCTURE:
+${promptSettings.emailStructure}
+
+COMMUNICATION RULES:
 ${promptSettings.communicationRules}
 
 EMAIL HISTORY:
@@ -669,18 +811,14 @@ ${userMessage}
 
 ${'='.repeat(60)}
 
-IMPORTANT INSTRUCTIONS:
-1. **LANGUAGE - CRITICAL**: The email conversation above is in ${lastEmailLanguage}. You MUST reply in ${lastEmailLanguage}. 
-   - If language is "Hungarian" → write the ENTIRE email in Hungarian
-   - If language is "English" → write the ENTIRE email in English
+CRITICAL FINAL INSTRUCTIONS:
+1. **LANGUAGE**: The email conversation above is in ${lastEmailLanguage}. You MUST reply in ${lastEmailLanguage}. 
+   - If "Hungarian" → write ENTIRE email in Hungarian
+   - If "English" → write ENTIRE email in English
    
-2. **TONE**: ${promptSettings.toneGuidance}
+2. Follow ALL the guidelines above (TONE & STYLE, LENGTH, LANGUAGE ADAPTATION, etc.)
 
-3. **MEETINGS**: Only suggest meetings if it makes sense in the context. Don't force it.
-
-4. **CONTEXT-AWARE**: ${promptSettings.contextAwareGuidance}
-
-5. **BE NATURAL**: ${promptSettings.naturalGuidance}
+3. Check the previous emails' tone and reply accordingly.
 
 Now, provide a concrete, practical email response IN ${lastEmailLanguage.toUpperCase()}!`;
     
@@ -2661,28 +2799,31 @@ function openPromptSettingsModal() {
             </div>
         </div>
         
-        <!-- User Role -->
+        <!-- Role & Goal -->
         <div style="margin-bottom: 24px;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
-                Your Role:
+                Role & Goal:
             </label>
-            <input type="text" id="prompt-user-role" value="${promptSettings.userRole}" style="
+            <textarea id="prompt-role-goal" style="
                 width: 100%;
                 padding: 12px;
                 border: 2px solid #dee2e6;
                 border-radius: 8px;
                 font-size: 14px;
+                font-family: monospace;
+                min-height: 120px;
                 box-sizing: border-box;
-            " placeholder="e.g., PRV Sales Manager">
+                resize: vertical;
+            " placeholder="Define your role and primary goals...">${promptSettings.roleAndGoal}</textarea>
             <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                How ChatGPT should refer to your position
+                Who you are and what your main goals are when responding to emails
             </div>
         </div>
         
         <!-- Business Model -->
         <div style="margin-bottom: 24px;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
-                Business Model Explanation:
+                Business Model:
             </label>
             <textarea id="prompt-business-model" style="
                 width: 100%;
@@ -2691,12 +2832,159 @@ function openPromptSettingsModal() {
                 border-radius: 8px;
                 font-size: 14px;
                 font-family: monospace;
-                min-height: 150px;
+                min-height: 130px;
                 box-sizing: border-box;
                 resize: vertical;
             " placeholder="Explain your business model...">${promptSettings.businessModel}</textarea>
             <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                Explain how your business works so ChatGPT understands the context
+                How your business works so ChatGPT understands the context
+            </div>
+        </div>
+        
+        <!-- Tone & Style -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Tone & Style:
+            </label>
+            <textarea id="prompt-tone-style" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 120px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Tone and style guidelines...">${promptSettings.toneAndStyle}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                How emails should be written (tone, formality, language style)
+            </div>
+        </div>
+        
+        <!-- Length Guidance -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Length Guidance:
+            </label>
+            <textarea id="prompt-length" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 80px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Email length guidelines...">${promptSettings.lengthGuidance}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                How long emails should be (paragraphs, bullet points, brevity)
+            </div>
+        </div>
+        
+        <!-- Language & Adaptation -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Language & Adaptation:
+            </label>
+            <textarea id="prompt-language" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 100px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Language adaptation rules...">${promptSettings.languageAdaptation}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                How to adapt language and formality based on the email thread
+            </div>
+        </div>
+        
+        <!-- Meetings & Next Steps -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Meetings & Next Steps:
+            </label>
+            <textarea id="prompt-meetings" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 100px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Meeting and next step guidelines...">${promptSettings.meetingsAndNextSteps}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                How to suggest meetings and move conversations forward
+            </div>
+        </div>
+        
+        <!-- Content Guidelines -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Content Guidelines:
+            </label>
+            <textarea id="prompt-content" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 100px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Content guidelines...">${promptSettings.contentGuidelines}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                What to include in email content and how to structure information
+            </div>
+        </div>
+        
+        <!-- What to Avoid -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                What to Avoid:
+            </label>
+            <textarea id="prompt-avoid" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 100px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Things to avoid...">${promptSettings.whatToAvoid}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                Practices and phrases to avoid in emails
+            </div>
+        </div>
+        
+        <!-- Email Structure -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                Email Structure:
+            </label>
+            <textarea id="prompt-structure" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                font-family: monospace;
+                min-height: 90px;
+                box-sizing: border-box;
+                resize: vertical;
+            " placeholder="Email structure template...">${promptSettings.emailStructure}</textarea>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                How to structure emails (subject, opening, body, closing)
             </div>
         </div>
         
@@ -2712,69 +3000,12 @@ function openPromptSettingsModal() {
                 border-radius: 8px;
                 font-size: 14px;
                 font-family: monospace;
-                min-height: 100px;
+                min-height: 90px;
                 box-sizing: border-box;
                 resize: vertical;
-            " placeholder="Communication guidelines...">${promptSettings.communicationRules}</textarea>
+            " placeholder="Critical communication rules...">${promptSettings.communicationRules}</textarea>
             <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                Specific rules ChatGPT should follow (e.g., only suggest phone meetings, never in-person)
-            </div>
-        </div>
-        
-        <!-- Tone Guidance -->
-        <div style="margin-bottom: 24px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
-                Tone & Style:
-            </label>
-            <input type="text" id="prompt-tone" value="${promptSettings.toneGuidance}" style="
-                width: 100%;
-                padding: 12px;
-                border: 2px solid #dee2e6;
-                border-radius: 8px;
-                font-size: 14px;
-                box-sizing: border-box;
-            " placeholder="e.g., Natural, friendly, but professional">
-            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                The overall tone for email responses
-            </div>
-        </div>
-        
-        <!-- Context-Aware Guidance -->
-        <div style="margin-bottom: 24px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
-                Context-Aware Instructions:
-            </label>
-            <textarea id="prompt-context" style="
-                width: 100%;
-                padding: 12px;
-                border: 2px solid #dee2e6;
-                border-radius: 8px;
-                font-size: 14px;
-                font-family: monospace;
-                min-height: 80px;
-                box-sizing: border-box;
-                resize: vertical;
-            " placeholder="How to be context-aware...">${promptSettings.contextAwareGuidance}</textarea>
-            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                Instructions for adapting to different conversation contexts
-            </div>
-        </div>
-        
-        <!-- Natural Guidance -->
-        <div style="margin-bottom: 24px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
-                Natural Communication Guide:
-            </label>
-            <input type="text" id="prompt-natural" value="${promptSettings.naturalGuidance}" style="
-                width: 100%;
-                padding: 12px;
-                border: 2px solid #dee2e6;
-                border-radius: 8px;
-                font-size: 14px;
-                box-sizing: border-box;
-            " placeholder="e.g., Read the conversation flow and respond like a real person would">
-            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                Guidance for natural, human-like responses
+                Specific rules that must always be followed
             </div>
         </div>
         
@@ -2840,12 +3071,16 @@ function closePromptSettingsModal() {
 function savePromptSettingsFromModal() {
     promptSettings.userName = document.getElementById('prompt-user-name').value.trim();
     promptSettings.userEmail = document.getElementById('prompt-user-email').value.trim();
-    promptSettings.userRole = document.getElementById('prompt-user-role').value.trim();
+    promptSettings.roleAndGoal = document.getElementById('prompt-role-goal').value.trim();
     promptSettings.businessModel = document.getElementById('prompt-business-model').value.trim();
+    promptSettings.toneAndStyle = document.getElementById('prompt-tone-style').value.trim();
+    promptSettings.lengthGuidance = document.getElementById('prompt-length').value.trim();
+    promptSettings.languageAdaptation = document.getElementById('prompt-language').value.trim();
+    promptSettings.meetingsAndNextSteps = document.getElementById('prompt-meetings').value.trim();
+    promptSettings.contentGuidelines = document.getElementById('prompt-content').value.trim();
+    promptSettings.whatToAvoid = document.getElementById('prompt-avoid').value.trim();
+    promptSettings.emailStructure = document.getElementById('prompt-structure').value.trim();
     promptSettings.communicationRules = document.getElementById('prompt-comm-rules').value.trim();
-    promptSettings.toneGuidance = document.getElementById('prompt-tone').value.trim();
-    promptSettings.contextAwareGuidance = document.getElementById('prompt-context').value.trim();
-    promptSettings.naturalGuidance = document.getElementById('prompt-natural').value.trim();
     
     savePromptSettings();
     showToast('✅ Prompt settings saved successfully!', 'success');
@@ -2857,20 +3092,54 @@ function resetPromptSettings() {
         promptSettings = {
             userName: 'Czechner Ince',
             userEmail: 'ince@prv.hu',
-            userRole: 'PRV Sales Manager',
-            businessModel: `- PRV creates corporate publications for large companies (project companies)
-- The project company sends invitations to their suppliers to participate in the publication
-- PRV forwards this invitation, then contacts suppliers via PHONE/EMAIL
-- THIS IS WARM OUTREACH - the supplier already received an invitation from the project company!
-- Suppliers PAY for their appearance (as advertisement or PR article)
-- Format: PRINTED and DIGITAL publication
-- Benefit: visibility to the project company and its supply chain, business opportunities`,
-            communicationRules: `- IF suggesting a meeting: ALWAYS suggest phone call or online meeting (Teams/Google Meet)
-- NEVER suggest in-person meetings
-- Reference the project company's invitation when appropriate`,
-            toneGuidance: 'Natural, friendly, but professional',
-            contextAwareGuidance: `If they're waiting for materials, asking a question, or providing info - respond appropriately. Don't always push for calls.`,
-            naturalGuidance: 'Read the conversation flow and respond like a real person would.',
+            roleAndGoal: `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
+
+Your primary goal:
+- Be clear, concise and professional.
+- Respect the time of senior managers and executives.
+- Move the conversation efficiently towards a decision (yes/no, call, next step).`,
+            businessModel: `- PRV creates corporate publications for large companies (project companies).
+- The project company sends invitations to their suppliers to participate in the publication.
+- PRV forwards this invitation, then contacts suppliers via PHONE/EMAIL.
+- THIS IS WARM OUTREACH – the supplier already received an invitation from the project company.
+- Suppliers PAY for their appearance (as advertisement or PR article).
+- Format: PRINTED and DIGITAL publication.
+- Benefit: visibility to the project company and its supply chain, business opportunities.`,
+            toneAndStyle: `- Default tone: **calm, confident, neutral, businesslike**.
+- Be **short and to the point**. Avoid small talk and long introductions.
+- Be **polite but not overly friendly**. No flattery, no effusive praise.
+- Use **clear, simple sentences** (like consulting-style email).
+- Avoid exclamation marks unless truly necessary.
+- Do NOT use emojis, gifs, or very emotional language.
+- If the other party writes in a more informal tone, you may be *slightly* more relaxed but stay professional.`,
+            lengthGuidance: `- Aim for **1–3 short paragraphs** OR **3–7 bullet points**.
+- Only write more if absolutely necessary (complex information, summary, etc.).
+- Remove redundant phrases and filler ("I hope this email finds you well", "Have a wonderful day ahead", etc.).`,
+            languageAdaptation: `- ALWAYS reply in the **same language** and approximate formality level as the latest email (English, German, Hungarian, etc.).
+- ALWAYS check the previous emails and mirror the **structure and level of formality**, but:
+  - If the previous email is emotional or informal, you stay calm and professional.
+  - If the previous email is very short, keep your reply short as well.`,
+            meetingsAndNextSteps: `- IF suggesting a meeting: ONLY suggest **phone call** or **online meeting** (Teams/Google Meet).
+- NEVER suggest in-person meetings.
+- Propose **2–3 specific time windows** when useful, or ask for the recipient's availability.
+- When relevant, **reference the project company's original invitation** ("As mentioned in the invitation from [Project Company]…").`,
+            contentGuidelines: `- Clarify the offer in **one or two sentences** maximum.
+- Emphasize benefits **for the supplier** briefly (visibility, positioning with the project company, etc.).
+- If replying to an objection, acknowledge it briefly, then respond in a **solution-oriented and concise** way.
+- If information is missing, ask **specific, targeted questions** (prefer bullet points).`,
+            whatToAvoid: `- Do NOT be overly enthusiastic or "salesy".
+- Do NOT write long, story-like emails.
+- Do NOT apologize excessively. One short apology is enough if needed.
+- Do NOT invent details about PRV or the project company.
+- Do NOT change the commercial terms unless explicitly instructed in the email history.`,
+            emailStructure: `- Short, clear subject line if you need to suggest one.
+- Very brief opening (1 sentence maximum).
+- Core message in 1–3 short paragraphs or bullet points.
+- Short closing line and signature (if not already defined in the thread).`,
+            communicationRules: `- VERY IMPORTANT: ALWAYS CHECK THE PREVIOUS EMAILS TONES AND REPLY ACCORDING TO THAT.
+- IF suggesting a meeting: ALWAYS suggest phone call or online meeting (Teams/Google Meet).
+- NEVER suggest in-person meetings.
+- Reference the project company's invitation when appropriate.`,
             companyResearchPrompt: `Keress meg MINDEN elérhető adatot erről a magyar cégről: {{company_name}}{{website_info}}
 
 Add meg MAGYARUL:
