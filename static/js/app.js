@@ -25,7 +25,32 @@ let promptSettings = JSON.parse(localStorage.getItem('promptSettings')) || {
 - Reference the project company's invitation when appropriate`,
     toneGuidance: 'Natural, friendly, but professional',
     contextAwareGuidance: `If they're waiting for materials, asking a question, or providing info - respond appropriately. Don't always push for calls.`,
-    naturalGuidance: 'Read the conversation flow and respond like a real person would.'
+    naturalGuidance: 'Read the conversation flow and respond like a real person would.',
+    companyResearchPrompt: `Keress meg MINDEN elérhető adatot erről a magyar cégről: {{company_name}}{{website_info}}
+
+Add meg MAGYARUL:
+
+📞 KAPCSOLATI ADATOK:
+- Pontos cégnév
+- Teljes cím (utca, házszám, irányítószám, település)
+- Telefonszám(ok), email, weboldal
+- Adószám, cégjegyzékszám
+- Főtevékenység (TEÁOR)
+- Alapítás éve, tulajdonos/ügyvezető
+- Alkalmazottak száma, árbevétel
+
+📊 CÉG PROFIL:
+- Tevékenységi kör, fő termékek/szolgáltatások
+- Iparág, célpiac
+- B2B/B2C profil
+
+PRINT HIRDETÉS JAVASLAT (vállalati kiadvány):
+- Javasolt méret (1/4, 1/2, egész oldal)
+- Vizuális stílus (modern/klasszikus)
+- Fő üzenet, CTA
+- Layout ötlet (termékfotó/logo/referenciák)
+
+KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég beszállítójuk, már kapták a meghívót hogy szerepeljenek a print és digitális kiadványban. Fizetnek a megjelenésért (hirdetés/PR cikk).`
 };
 
 function saveEmailPrompts() {
@@ -815,9 +840,8 @@ function openCompanyResearch() {
         
         <div style="background: #d4edda; padding: 16px; border-bottom: 1px solid #c3e6cb;">
             <p style="margin: 0; font-size: 14px; color: #155724; line-height: 1.5;">
-                💡 AI böngészőben nyílik meg (jobb eredmények)<br>
-                Másold ki az eredményt (Ctrl+C) és kattints a '📋 Beillesztés' gombra!<br>
-                💡 TIP: Perplexity MINDIG keres, ChatGPT néha offline módban van.
+                💡 Perplexity böngészőben nyílik meg (jobb eredmények)<br>
+                Másold ki az eredményt (Ctrl+C) és kattints a '📋 Beillesztés' gombra!
             </p>
         </div>
         
@@ -875,14 +899,14 @@ function openCompanyResearch() {
                     font-weight: 600;
                     cursor: pointer;
                 ">
-                    🔍 Perplexity (Ajánlott!)
+                    🔍 Perplexity Kutatás
                 </button>
                 
-                <button onclick="openChatGPTResearch()" style="
+                <button onclick="openCompanyResearchPromptEditor()" style="
                     flex: 1;
                     min-width: 140px;
                     padding: 12px 20px;
-                    background: #27ae60;
+                    background: #f39c12;
                     color: white;
                     border: none;
                     border-radius: 8px;
@@ -890,7 +914,7 @@ function openCompanyResearch() {
                     font-weight: 600;
                     cursor: pointer;
                 ">
-                    💬 ChatGPT
+                    ⚙️ Prompt Testreszabása
                 </button>
             </div>
             
@@ -980,34 +1004,134 @@ function openPerplexity() {
     
     const websiteInfo = website ? ` Weboldal: ${website}` : '';
     
-    const prompt = `Keress meg MINDEN elérhető adatot erről a magyar cégről: ${companyName}${websiteInfo}
-
-Add meg MAGYARUL:
-
-📞 KAPCSOLATI ADATOK:
-- Pontos cégnév
-- Teljes cím (utca, házszám, irányítószám, település)
-- Telefonszám(ok), email, weboldal
-- Adószám, cégjegyzékszám
-- Főtevékenység (TEÁOR)
-- Alapítás éve, tulajdonos/ügyvezető
-- Alkalmazottak száma, árbevétel
-
-📊 CÉG PROFIL:
-- Tevékenységi kör, fő termékek/szolgáltatások
-- Iparág, célpiac
-- B2B/B2C profil
-
-PRINT HIRDETÉS JAVASLAT (vállalati kiadvány):
-- Javasolt méret (1/4, 1/2, egész oldal)
-- Vizuális stílus (modern/klasszikus)
-- Fő üzenet, CTA
-- Layout ötlet (termékfotó/logo/referenciák)
-
-KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég beszállítójuk, már kapták a meghívót hogy szerepeljenek a print és digitális kiadványban. Fizetnek a megjelenésért (hirdetés/PR cikk).`;
+    // Use customizable prompt with placeholders
+    let prompt = promptSettings.companyResearchPrompt || '';
+    prompt = prompt.replace(/\{\{company_name\}\}/g, companyName);
+    prompt = prompt.replace(/\{\{website_info\}\}/g, websiteInfo);
     
     const url = `https://www.perplexity.ai/?q=${encodeURIComponent(prompt)}`;
     window.open(url, '_blank');
+}
+
+function openCompanyResearchPromptEditor() {
+    const modal = document.createElement('div');
+    modal.id = 'company-prompt-editor-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001;
+        padding: 20px;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        max-width: 800px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 0;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    `;
+    
+    modalContent.innerHTML = `
+        <div style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); padding: 24px; border-radius: 16px 16px 0 0;">
+            <h2 style="margin: 0; font-size: 24px; color: white;">⚙️ Cég Kutatás Prompt Szerkesztése</h2>
+        </div>
+        
+        <div style="background: #fff3cd; padding: 16px; border-bottom: 1px solid #ffeaa7;">
+            <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.5;">
+                💡 Használd a <strong>{{company_name}}</strong> és <strong>{{website_info}}</strong> helyettesítőket!<br>
+                Ezek automatikusan kicserélődnek a cég nevére és weboldalára.
+            </p>
+        </div>
+        
+        <div style="padding: 24px;">
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2d3748;">
+                    Perplexity Kutatási Prompt:
+                </label>
+                <textarea id="company-research-prompt-input" style="
+                    width: 100%;
+                    min-height: 400px;
+                    padding: 12px;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-family: 'Courier New', monospace;
+                    line-height: 1.6;
+                    box-sizing: border-box;
+                    resize: vertical;
+                ">${promptSettings.companyResearchPrompt || ''}</textarea>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button onclick="saveCompanyResearchPrompt()" style="
+                    flex: 1;
+                    padding: 12px 20px;
+                    background: #27ae60;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                ">
+                    💾 Mentés
+                </button>
+                
+                <button onclick="closeCompanyPromptEditor()" style="
+                    flex: 1;
+                    padding: 12px 20px;
+                    background: #95a5a6;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                ">
+                    Bezárás
+                </button>
+            </div>
+        </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // Close on background click
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeCompanyPromptEditor();
+        }
+    });
+}
+
+function closeCompanyPromptEditor() {
+    const modal = document.getElementById('company-prompt-editor-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function saveCompanyResearchPrompt() {
+    const promptInput = document.getElementById('company-research-prompt-input');
+    if (!promptInput) return;
+    
+    promptSettings.companyResearchPrompt = promptInput.value;
+    localStorage.setItem('promptSettings', JSON.stringify(promptSettings));
+    
+    showToast('✅ Prompt sikeresen mentve!', '#27ae60');
+    closeCompanyPromptEditor();
 }
 
 function openChatGPTResearch() {
@@ -2716,7 +2840,32 @@ function resetPromptSettings() {
 - Reference the project company's invitation when appropriate`,
             toneGuidance: 'Natural, friendly, but professional',
             contextAwareGuidance: `If they're waiting for materials, asking a question, or providing info - respond appropriately. Don't always push for calls.`,
-            naturalGuidance: 'Read the conversation flow and respond like a real person would.'
+            naturalGuidance: 'Read the conversation flow and respond like a real person would.',
+            companyResearchPrompt: `Keress meg MINDEN elérhető adatot erről a magyar cégről: {{company_name}}{{website_info}}
+
+Add meg MAGYARUL:
+
+📞 KAPCSOLATI ADATOK:
+- Pontos cégnév
+- Teljes cím (utca, házszám, irányítószám, település)
+- Telefonszám(ok), email, weboldal
+- Adószám, cégjegyzékszám
+- Főtevékenység (TEÁOR)
+- Alapítás éve, tulajdonos/ügyvezető
+- Alkalmazottak száma, árbevétel
+
+📊 CÉG PROFIL:
+- Tevékenységi kör, fő termékek/szolgáltatások
+- Iparág, célpiac
+- B2B/B2C profil
+
+PRINT HIRDETÉS JAVASLAT (vállalati kiadvány):
+- Javasolt méret (1/4, 1/2, egész oldal)
+- Vizuális stílus (modern/klasszikus)
+- Fő üzenet, CTA
+- Layout ötlet (termékfotó/logo/referenciák)
+
+KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég beszállítójuk, már kapták a meghívót hogy szerepeljenek a print és digitális kiadványban. Fizetnek a megjelenésért (hirdetés/PR cikk).`
         };
         
         savePromptSettings();
