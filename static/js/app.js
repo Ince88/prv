@@ -3715,23 +3715,21 @@ async function loadMiniCRMTodos(email) {
         
         currentMiniCRMContact = contactData.contact;
         
-        // Get todos for this contact's project
-        // Note: Todos are typically assigned to PROJECTS
-        const projectId = contactData.contact.project_id;
+        // Get todos for this contact's business (which will include all projects)
+        // MiniCRM Structure: Contact → Business → Projects → Todos
         const businessId = contactData.contact.business_id;
         
-        if (!projectId && !businessId) {
-            console.log('No project_id or business_id found for contact - cannot fetch todos');
+        if (!businessId) {
+            console.log('No business_id found for contact - cannot fetch todos');
             return;
         }
         
-        console.log(`Fetching todos - Project ID: ${projectId}, Business ID: ${businessId}`);
+        console.log(`Fetching todos for Business ID: ${businessId}`);
         
         const todosResponse = await fetch('/api/minicrm/get_todos', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
-                project_id: projectId,
                 business_id: businessId,
                 contact_name: contactData.contact.name
             })

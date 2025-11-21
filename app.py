@@ -1083,63 +1083,107 @@ def minicrm_get_todos():
     
     try:
         data = request.json
-        project_id = data.get('project_id')
         business_id = data.get('business_id')
         contact_name = data.get('contact_name', 'Unknown')
         
-        # Todos are assigned to PROJECTS, not contacts or businesses!
-        # Try project_id first, fallback to business_id
-        todo_list_id = project_id or business_id
+        print(f"Getting todos for business ID: {business_id} (Contact: {contact_name})")
         
-        print(f"Getting todos for entity ID: {todo_list_id} (Project: {project_id}, Business: {business_id}, Contact: {contact_name})")
+        if not business_id:
+            return jsonify({'error': 'Business ID required to find projects and todos'}), 400
         
-        if not todo_list_id:
-            return jsonify({'error': 'Project ID or Business ID required for todos'}), 400
-        
-        # MiniCRM API call to get todos
-        # Correct endpoint: /Api/R3/ToDoList/{id}
-        # Note: Todos are typically assigned to PROJECTS
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
-        url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{todo_list_id}"
         
-        print(f"Making TODO request to: {url}")
+        # Step 1: Get all Projects for this Business
+        # MiniCRM structure: Contact → Business → Projects → ToDoList
+        projects_url = f"https://r3.minicrm.hu/Api/R3/Project"
+        projects_params = {'MainContactId': business_id}
         
-        response = requests.get(url, auth=auth, timeout=10)
+        print(f"Getting projects for business: {projects_url}?MainContactId={business_id}")
+        projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=10)
         
-        print(f"TODO Response status: {response.status_code}")
-        print(f"TODO Response content: {response.text[:500]}")
+        print(f"Projects response status: {projects_response.status_code}")
+        print(f"Projects response content: {projects_response.text[:500]}")
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"Todos response: {type(data)}")
+        if projects_response.status_code != 200:
+            error_msg = f"Failed to get projects: {projects_response.status_code} - {projects_response.text[:200]}"
+            print(error_msg)
+            return jsonify({'error': error_msg, 'success': False, 'todos': []}), 200
+        
+        projects_data = projects_response.json()
+        projects_results = projects_data.get('Results', {})
+        projects_count = projects_data.get('Count', 0)
+        
+        print(f"Found {projects_count} projects for this business")
+        
+        if projects_count == 0:
+            print("No projects found for this business")
+            return jsonify({'success': True, 'todos': [], 'message': 'No projects found'})
+        
+        # Step 2: Get todos from all projects
+        all_todos = []
+        
+        for project_id_str, project_info in projects_results.items():
+            project_id = project_info.get('Id')
+            project_name = project_info.get('Name')
             
-            # MiniCRM API returns: {"Count": N, "Results": {"id1": {...}, "id2": {...}}}
-            results = data.get('Results', {})
-            count = data.get('Count', 0)
+            print(f"Getting todos for project: {project_name} (ID: {project_id})")
             
-            print(f"Found {count} todos")
+            # MiniCRM API call to get todos for this project
+            # Correct endpoint: /Api/R3/ToDoList/{project_id}
+            url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
             
-            # Format todos for frontend
-            formatted_todos = []
-            for todo_id, todo in results.items():
-                formatted_todos.append({
-                    'id': todo.get('Id'),
-                    'title': todo.get('Title') or todo.get('Name', 'Névtelen teendő'),
-                    'description': todo.get('Description', ''),
-                    'deadline': todo.get('Deadline') or todo.get('DueDate'),
-                    'status': todo.get('Status', 'Active'),
-                    'completed': todo.get('Completed', False)
-                })
+            print(f"Making TODO request to: {url}")
             
-            print(f"Formatted {len(formatted_todos)} todos")
-            
-            return jsonify({
-                'success': True,
-                'todos': formatted_todos,
-                'count': len(formatted_todos)
-            })
-        else:
-            return jsonify({'error': f'MiniCRM API error: {response.status_code}'}), response.status_code
+            try:
+                response = requests.get(url, auth=auth, timeout=10)
+                
+                print(f"TODO Response status: {response.status_code}")
+                print(f"TODO Response content: {response.text[:500]}")
+                
+                if response.status_code == 200:
+                    todo_data = response.json()
+                    print(f"Todos response type: {type(todo_data)}")
+                    
+                    # MiniCRM API returns: {"Count": N, "Results": [{...}, {...}]} or {"Count": N, "Results": {"id1": {...}}}
+                    results = todo_data.get('Results', {})
+                    count = todo_data.get('Count', 0)
+                    
+                    print(f"Found {count} todos for project {project_name}")
+                    
+                    # Handle both dict and list response formats
+                    if isinstance(results, dict):
+                        todo_items = results.values()
+                    else:
+                        todo_items = results
+                    
+                    # Format todos for frontend
+                    for todo in todo_items:
+                        formatted_todo = {
+                            'id': todo.get('Id'),
+                            'title': todo.get('Comment') or todo.get('Title') or todo.get('Name', 'Névtelen teendő'),
+                            'description': todo.get('Description', ''),
+                            'deadline': todo.get('Deadline') or todo.get('DueDate'),
+                            'status': todo.get('Status', 'Active'),
+                            'completed': todo.get('Status') == 'Closed',
+                            'project_name': project_name,
+                            'project_id': project_id
+                        }
+                        all_todos.append(formatted_todo)
+                    
+                else:
+                    print(f"Failed to get todos for project {project_id}: {response.status_code}")
+                    
+            except Exception as e:
+                print(f"Error getting todos for project {project_id}: {str(e)}")
+                continue
+        
+        print(f"Total todos found across all projects: {len(all_todos)}")
+        
+        return jsonify({
+            'success': True,
+            'todos': all_todos,
+            'count': len(all_todos)
+        })
     
     except requests.exceptions.Timeout:
         return jsonify({'error': 'MiniCRM API timeout'}), 408
