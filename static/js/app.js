@@ -526,6 +526,9 @@ async function loadEmails() {
             // Show email prompt suggestions (will appear at the bottom)
             showEmailPromptSuggestions();
             
+            // Show MiniCRM todos panel if enabled
+            loadMiniCRMTodos(email);
+            
             // Focus on message input
             const messageInput = document.getElementById('message-input');
             messageInput.placeholder = 'Type your request or use a quick prompt above...';
@@ -3673,8 +3676,215 @@ async function sendBulkEmails() {
             </div>
         `;
         showToast(`❌ Failed to send emails: ${error.message}`, 'error');
-    } finally {
+    } finally{
         sendBtn.innerHTML = originalText;
         sendBtn.disabled = false;
     }
+}
+
+// ============================================
+// MINICRM INTEGRATION
+// ============================================
+
+let currentMiniCRMContact = null;
+
+async function loadMiniCRMTodos(email) {
+    try {
+        // Check if MiniCRM is enabled
+        const statusResponse = await fetch('/api/minicrm/status');
+        const statusData = await statusResponse.json();
+        
+        if (!statusData.enabled) {
+            console.log('MiniCRM integration not enabled');
+            return;
+        }
+        
+        // Find contact by email
+        const contactResponse = await fetch('/api/minicrm/find_contact', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ email: email })
+        });
+        
+        const contactData = await contactResponse.json();
+        
+        if (!contactData.found) {
+            console.log('No MiniCRM contact found for this email');
+            return;
+        }
+        
+        currentMiniCRMContact = contactData.contact;
+        
+        // Get todos for this contact
+        const todosResponse = await fetch('/api/minicrm/get_todos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ contact_id: contactData.contact.id })
+        });
+        
+        const todosData = await todosResponse.json();
+        
+        if (todosData.success && todosData.todos.length > 0) {
+            displayMiniCRMTodosPanel(todosData.todos, contactData.contact);
+        }
+    } catch (error) {
+        console.error('Error loading MiniCRM todos:', error);
+    }
+}
+
+function displayMiniCRMTodosPanel(todos, contact) {
+    // Remove existing panel if any
+    const existingPanel = document.getElementById('minicrm-todos-panel');
+    if (existingPanel) {
+        existingPanel.remove();
+    }
+    
+    const messagesContainer = document.getElementById('messages-container');
+    
+    const panel = document.createElement('div');
+    panel.id = 'minicrm-todos-panel';
+    panel.style.cssText = `
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 24px;
+        margin: 16px;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        color: white;
+    `;
+    
+    panel.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+            <div>
+                <h3 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700;">
+                    📋 MiniCRM Teendők
+                </h3>
+                <div style="font-size: 14px; opacity: 0.9;">
+                    ${contact.name} ${contact.company ? `(${contact.company})` : ''}
+                </div>
+            </div>
+            <button onclick="closeMiniCRMPanel()" style="
+                background: rgba(255, 255, 255, 0.2);
+                border: none;
+                color: white;
+                font-size: 24px;
+                cursor: pointer;
+                border-radius: 8px;
+                width: 36px;
+                height: 36px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            ">×</button>
+        </div>
+        
+        <div style="background: rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; max-height: 400px; overflow-y: auto;">
+            ${todos.map((todo, index) => `
+                <div style="background: rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 16px; margin-bottom: 12px; backdrop-filter: blur(10px);">
+                    <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 12px;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 16px; margin-bottom: 6px;">
+                                ${todo.title}
+                            </div>
+                            ${todo.description ? `
+                                <div style="font-size: 13px; opacity: 0.9; margin-bottom: 8px;">
+                                    ${todo.description}
+                                </div>
+                            ` : ''}
+                            ${todo.deadline ? `
+                                <div style="font-size: 13px; opacity: 0.8;">
+                                    ⏰ Jelenlegi határidő: <strong>${formatDate(todo.deadline)}</strong>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="date" id="new-deadline-${todo.id}" value="${todo.deadline ? todo.deadline.split('T')[0] : ''}" style="
+                            flex: 1;
+                            padding: 10px;
+                            border: none;
+                            border-radius: 8px;
+                            background: rgba(255, 255, 255, 0.9);
+                            color: #2c3e50;
+                            font-size: 14px;
+                        ">
+                        <button onclick="updateTodoDeadline(${todo.id})" style="
+                            padding: 10px 20px;
+                            background: #27ae60;
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 600;
+                            font-size: 14px;
+                            white-space: nowrap;
+                        ">
+                            💾 Mentés
+                        </button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.2); font-size: 13px; opacity: 0.8; text-align: center;">
+            💡 Válaszd ki az új határidőt és kattints a Mentés gombra
+        </div>
+    `;
+    
+    messagesContainer.appendChild(panel);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function closeMiniCRMPanel() {
+    const panel = document.getElementById('minicrm-todos-panel');
+    if (panel) {
+        panel.remove();
+    }
+}
+
+async function updateTodoDeadline(todoId) {
+    const dateInput = document.getElementById(`new-deadline-${todoId}`);
+    const newDeadline = dateInput.value;
+    
+    if (!newDeadline) {
+        showToast('❌ Kérlek válassz új határidőt!', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/minicrm/update_todo_deadline', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                todo_id: todoId,
+                deadline: newDeadline + 'T12:00:00'  // Add time component
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+            
+            // Reload the todos panel
+            if (currentEmailAddress) {
+                loadMiniCRMTodos(currentEmailAddress);
+            }
+        } else {
+            showToast('❌ ' + (data.error || 'Hiba történt'), 'error');
+        }
+    } catch (error) {
+        showToast('❌ Hiba: ' + error.message, 'error');
+    }
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'Nincs megadva';
+    
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
 }

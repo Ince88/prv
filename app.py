@@ -72,6 +72,11 @@ else:
 
 ALLOWED_EMAIL_DOMAINS = os.getenv('ALLOWED_EMAIL_DOMAINS', '').split(',') if os.getenv('ALLOWED_EMAIL_DOMAINS') else []
 
+# MiniCRM Configuration
+MINICRM_SYSTEM_ID = os.getenv('MINICRM_SYSTEM_ID', '')
+MINICRM_API_KEY = os.getenv('MINICRM_API_KEY', '')
+MINICRM_ENABLED = bool(MINICRM_SYSTEM_ID and MINICRM_API_KEY)
+
 # Load API keys from environment variables (production) or config file (local)
 CONFIG_FILE = 'config.json'
 CHATGPT_API_KEY = os.getenv('OPENAI_API_KEY')  # Try env var first
@@ -943,6 +948,164 @@ def open_browser():
     """Open browser after a short delay (local development only)"""
     time.sleep(1.5)
     webbrowser.open('http://localhost:5000')
+
+
+# ============================================
+# MINICRM API ENDPOINTS
+# ============================================
+
+@app.route('/api/minicrm/status', methods=['GET'])
+@requires_auth
+def minicrm_status():
+    """Check if MiniCRM integration is enabled"""
+    return jsonify({
+        'enabled': MINICRM_ENABLED,
+        'system_id': MINICRM_SYSTEM_ID if MINICRM_ENABLED else None
+    })
+
+
+@app.route('/api/minicrm/find_contact', methods=['POST'])
+@requires_auth
+def minicrm_find_contact():
+    """Find contact in MiniCRM by email address"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        data = request.json
+        email = data.get('email', '').strip()
+        
+        if not email:
+            return jsonify({'error': 'Email address required'}), 400
+        
+        # MiniCRM API call to search contacts
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
+        url = f"https://r3.minicrm.hu/Api/R3/Contact"
+        
+        # Search by email
+        params = {'Email': email}
+        response = requests.get(url, auth=auth, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            contacts = response.json()
+            if contacts and len(contacts) > 0:
+                # Return first matching contact
+                contact = contacts[0]
+                return jsonify({
+                    'found': True,
+                    'contact': {
+                        'id': contact.get('Id'),
+                        'name': contact.get('Name'),
+                        'email': contact.get('Email'),
+                        'company': contact.get('Company'),
+                        'phone': contact.get('Phone')
+                    }
+                })
+            else:
+                return jsonify({'found': False, 'message': 'No contact found with this email'})
+        else:
+            return jsonify({'error': f'MiniCRM API error: {response.status_code}'}), response.status_code
+    
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'MiniCRM API timeout'}), 408
+    except Exception as e:
+        print(f"Error finding contact: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/minicrm/get_todos', methods=['POST'])
+@requires_auth
+def minicrm_get_todos():
+    """Get todos (tasks) for a contact from MiniCRM"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        data = request.json
+        contact_id = data.get('contact_id')
+        
+        if not contact_id:
+            return jsonify({'error': 'Contact ID required'}), 400
+        
+        # MiniCRM API call to get todos
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
+        url = f"https://r3.minicrm.hu/Api/R3/Todo"
+        
+        # Get todos for this contact
+        params = {'ContactId': contact_id}
+        response = requests.get(url, auth=auth, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            todos = response.json()
+            
+            # Format todos for frontend
+            formatted_todos = []
+            for todo in todos:
+                formatted_todos.append({
+                    'id': todo.get('Id'),
+                    'title': todo.get('Title') or todo.get('Name', 'Névtelen teendő'),
+                    'description': todo.get('Description', ''),
+                    'deadline': todo.get('Deadline') or todo.get('DueDate'),
+                    'status': todo.get('Status', 'Active'),
+                    'completed': todo.get('Completed', False)
+                })
+            
+            return jsonify({
+                'success': True,
+                'todos': formatted_todos,
+                'count': len(formatted_todos)
+            })
+        else:
+            return jsonify({'error': f'MiniCRM API error: {response.status_code}'}), response.status_code
+    
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'MiniCRM API timeout'}), 408
+    except Exception as e:
+        print(f"Error getting todos: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/minicrm/update_todo_deadline', methods=['POST'])
+@requires_auth
+def minicrm_update_todo_deadline():
+    """Update deadline of a todo in MiniCRM"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        data = request.json
+        todo_id = data.get('todo_id')
+        new_deadline = data.get('deadline')
+        
+        if not todo_id or not new_deadline:
+            return jsonify({'error': 'Todo ID and deadline required'}), 400
+        
+        # MiniCRM API call to update todo
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
+        url = f"https://r3.minicrm.hu/Api/R3/Todo/{todo_id}"
+        
+        # Update payload
+        update_data = {
+            'Deadline': new_deadline
+        }
+        
+        response = requests.put(url, auth=auth, json=update_data, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({
+                'success': True,
+                'message': 'Határidő sikeresen frissítve!',
+                'todo_id': todo_id,
+                'new_deadline': new_deadline
+            })
+        else:
+            return jsonify({'error': f'MiniCRM API error: {response.status_code}'}), response.status_code
+    
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'MiniCRM API timeout'}), 408
+    except Exception as e:
+        print(f"Error updating todo deadline: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
