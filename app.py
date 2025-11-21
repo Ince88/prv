@@ -1305,34 +1305,247 @@ def minicrm_get_todos():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/minicrm/daily_todos', methods=['GET'])
+@app.route('/api/minicrm/daily_todos', methods=['POST'])
 @requires_auth
 def minicrm_daily_todos():
-    """Get all todos for today across all projects"""
+    """Get all todos for today and overdue across all user's projects"""
     if not MINICRM_ENABLED:
         return jsonify({'error': 'MiniCRM integration not configured'}), 400
     
     try:
-        from datetime import date
+        from datetime import date, datetime
+        
+        data = request.json or {}
+        category_id = data.get('category_id')
+        filter_user = data.get('filter_user')
+        
         today = date.today().strftime('%Y-%m-%d')
         
-        print(f"Fetching all todos for today: {today}")
+        print(f"Fetching daily+overdue todos for {today} (Category: {category_id or 'All'}, User: {filter_user or 'All'})")
         
-        # This is a simplified version - in production you'd want to:
-        # 1. Get user's CategoryId filter from request
-        # 2. Get user's UserId filter from request  
-        # 3. Query specific projects or all accessible projects
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
-        # For now, return empty - will be implemented with proper project discovery
+        # Step 1: Get ALL projects (with optional CategoryId filter)
+        projects_url = "https://r3.minicrm.hu/Api/R3/Project"
+        projects_params = {}
+        
+        if category_id:
+            projects_params['CategoryId'] = category_id
+        
+        print(f"Getting all projects: {projects_url}")
+        projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
+        
+        if projects_response.status_code != 200:
+            return jsonify({'error': f'Failed to get projects: {projects_response.status_code}'}), 500
+        
+        projects_data = projects_response.json()
+        projects_results = projects_data.get('Results', {})
+        
+        print(f"Found {len(projects_results)} projects total")
+        
+        # Step 2: Get todos from all projects
+        all_todos = []
+        
+        for project_id_str, project_info in (projects_results.items() if isinstance(projects_results, dict) else enumerate(projects_results)):
+            project_id = project_info.get('Id')
+            project_name = project_info.get('Name', 'Unknown')
+            status_id = project_info.get('StatusId')
+            
+            try:
+                # Get todos (Open status only)
+                todo_url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
+                todo_params = {'Status': 'Open'}
+                
+                todo_response = requests.get(todo_url, auth=auth, params=todo_params, timeout=10)
+                
+                if todo_response.status_code == 200:
+                    todo_data = todo_response.json()
+                    todos = todo_data.get('Results', [])
+                    
+                    if isinstance(todos, dict):
+                        todos = list(todos.values())
+                    
+                    for todo in todos:
+                        deadline_str = todo.get('Deadline', '')
+                        if not deadline_str:
+                            continue
+                        
+                        # Parse deadline
+                        try:
+                            deadline_date = datetime.strptime(deadline_str.split(' ')[0], '%Y-%m-%d').date()
+                        except:
+                            continue
+                        
+                        # Filter: today or overdue (deadline <= today)
+                        if deadline_date <= date.today():
+                            todo_user_id = todo.get('UserId', '')
+                            
+                            # Apply user filter if specified
+                            if filter_user and str(todo_user_id) != str(filter_user):
+                                continue
+                            
+                            # Determine if overdue
+                            is_overdue = deadline_date < date.today()
+                            
+                            all_todos.append({
+                                'id': todo.get('Id'),
+                                'title': todo.get('Comment', 'Névtelen teendő'),
+                                'description': todo.get('Comment', ''),  # Full text
+                                'deadline': deadline_str,
+                                'status': todo.get('Status', 'Open'),
+                                'project_id': project_id,
+                                'project_name': project_name,
+                                'project_status_id': status_id,
+                                'assigned_to': todo_user_id,
+                                'is_overdue': is_overdue,
+                                'category': 'ACS' if category_id == '23' else 'PCS' if category_id == '41' else 'Unknown'
+                            })
+            
+            except Exception as e:
+                print(f"Error getting todos for project {project_id}: {str(e)}")
+                continue
+        
+        # Sort: overdue first, then by deadline
+        all_todos.sort(key=lambda x: (not x['is_overdue'], x['deadline']))
+        
+        print(f"Total todos for today+overdue: {len(all_todos)} ({sum(1 for t in all_todos if t['is_overdue'])} overdue)")
+        
         return jsonify({
             'success': True,
             'date': today,
-            'todos': [],
-            'message': 'Daily todos feature coming soon - needs project discovery implementation'
+            'todos': all_todos,
+            'total': len(all_todos),
+            'overdue': sum(1 for t in all_todos if t['is_overdue'])
         })
     
     except Exception as e:
         print(f"Error getting daily todos: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/minicrm/update_todo_text', methods=['POST'])
+@requires_auth
+def minicrm_update_todo_text():
+    """Update comment/text of a todo in MiniCRM"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        data = request.json
+        todo_id = data.get('todo_id')
+        new_text = data.get('text')
+        
+        if not todo_id or new_text is None:
+            return jsonify({'error': 'Todo ID and text required'}), 400
+        
+        # MiniCRM API call to update todo
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
+        url = f"https://r3.minicrm.hu/Api/R3/ToDo/{todo_id}"
+        
+        update_data = {'Comment': new_text}
+        
+        print(f"Updating todo {todo_id} text...")
+        
+        response = requests.put(url, auth=auth, json=update_data, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({
+                'success': True,
+                'message': 'Teendő szövege sikeresen frissítve!'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'MiniCRM API error: {response.status_code}'
+            }), response.status_code
+    
+    except Exception as e:
+        print(f"Error updating todo text: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/minicrm/get_project_statuses', methods=['POST'])
+@requires_auth
+def minicrm_get_project_statuses():
+    """Get available statuses for a project's category from MiniCRM Schema"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        data = request.json
+        category_id = data.get('category_id', '23')  # Default to ACS
+        
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
+        url = f"https://r3.minicrm.hu/Api/R3/Schema/Project/{category_id}"
+        
+        print(f"Getting statuses for category {category_id}...")
+        
+        response = requests.get(url, auth=auth, timeout=10)
+        
+        if response.status_code == 200:
+            schema_data = response.json()
+            status_field = schema_data.get('StatusId', {})
+            statuses = status_field.get('Values', {})
+            
+            # Convert to list format
+            status_list = [
+                {'id': status_id, 'name': status_info.get('Name', status_id)}
+                for status_id, status_info in statuses.items()
+            ]
+            
+            print(f"Found {len(status_list)} statuses")
+            
+            return jsonify({
+                'success': True,
+                'statuses': status_list
+            })
+        else:
+            return jsonify({'error': f'Failed to get statuses: {response.status_code}'}), response.status_code
+    
+    except Exception as e:
+        print(f"Error getting statuses: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/minicrm/update_project_status', methods=['POST'])
+@requires_auth
+def minicrm_update_project_status():
+    """Update project status in MiniCRM"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        data = request.json
+        project_id = data.get('project_id')
+        status_id = data.get('status_id')
+        
+        if not project_id or not status_id:
+            return jsonify({'error': 'Project ID and status ID required'}), 400
+        
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
+        url = f"https://r3.minicrm.hu/Api/R3/Project/{project_id}"
+        
+        update_data = {'StatusId': status_id}
+        
+        print(f"Updating project {project_id} status to {status_id}...")
+        
+        response = requests.put(url, auth=auth, json=update_data, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({
+                'success': True,
+                'message': 'Projekt státusz sikeresen frissítve!'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'MiniCRM API error: {response.status_code}'
+            }), response.status_code
+    
+    except Exception as e:
+        print(f"Error updating project status: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 

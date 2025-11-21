@@ -4063,34 +4063,29 @@ document.addEventListener('DOMContentLoaded', function() {
 async function openDailyTodosView() {
     showToast('📋 Loading today\'s todos...', 'info');
     
-    // For now, use a mock/placeholder view
-    // TODO: Implement proper backend integration
-    displayDailyTodosModal([
-        {
-            id: 1,
-            title: 'Meghívó küldés',
-            company: 'Körber Hungária Kft.',
-            contact: 'Koch Emil',
-            email: 'emil.koch@koerber.com',
-            phone: '+36 20 661 2783',
-            project_name: 'Körber Hungária Kft.',
-            deadline: '2025-11-21 23:59:00',
-            status: 'Open',
-            category: 'ACS'
-        },
-        {
-            id: 2,
-            title: 'Követés - ajánlat',
-            company: 'HR-RENT KFT',
-            contact: 'Koch Emil',
-            email: 'emil.koch@koerber.com',
-            phone: '',
-            project_name: 'HR-RENT KFT',
-            deadline: '2025-11-21 14:30:00',
-            status: 'Open',
-            category: 'ACS'
+    try {
+        // Fetch real data from MiniCRM
+        const response = await fetch('/api/minicrm/daily_todos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                category_id: promptSettings.miniCrmCategoryId || null,
+                filter_user: promptSettings.miniCrmUserName || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`✅ Loaded ${data.total} todos (${data.overdue} overdue)`, 'success');
+            displayDailyTodosModal(data.todos);
+        } else {
+            showToast('❌ ' + (data.error || 'Failed to load todos'), 'error');
         }
-    ]);
+    } catch (error) {
+        console.error('Error loading daily todos:', error);
+        showToast('❌ Error: ' + error.message, 'error');
+    }
 }
 
 function displayDailyTodosModal(todos) {
