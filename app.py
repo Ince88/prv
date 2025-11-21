@@ -1195,12 +1195,14 @@ def minicrm_get_todos():
             
             # MiniCRM API call to get todos for this project
             # Correct endpoint: /Api/R3/ToDoList/{project_id}
+            # Status parameter: Open (only active todos), Closed (completed), or All (default)
             url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
+            todo_params = {'Status': 'Open'}  # Only fetch active/open todos
             
-            print(f"Making TODO request to: {url}")
+            print(f"Making TODO request to: {url}?Status=Open")
             
             try:
-                response = requests.get(url, auth=auth, timeout=10)
+                response = requests.get(url, auth=auth, params=todo_params, timeout=10)
                 
                 print(f"TODO Response status: {response.status_code}")
                 print(f"TODO Response content: {response.text[:500]}")
