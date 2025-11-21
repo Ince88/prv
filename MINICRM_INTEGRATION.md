@@ -27,8 +27,10 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
 
 ### 4. **Felelős Szerinti Szűrés** 🆕
 - Beállíthatod hogy csak a **hozzád rendelt** teendők jelenjenek meg
-- Settings → Prompt Settings → "MiniCRM Felhasználónév"
+- Settings → Prompt Settings → "🔗 MiniCRM Felhasználó ID"
+- ⚠️ **NUMERIKUS User ID** szükséges (pl: 120420), NEM a neved!
 - Ha üresen hagyod, az **összes** teendő megjelenik
+- User ID megtalálása: Railway log → "Unique UserIds in project"
 
 ---
 
@@ -60,10 +62,19 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
 
 4. **Teendők Szűrése Felelős Szerint** 🆕
    ```
+   ⚠️ FONTOS: A MiniCRM NUMERIKUS User ID-t kell megadni, NEM a nevedet!
+   
+   Hogyan találod meg a User ID-d:
+   1. Töltsd be egy email történetét
+   2. Nézd meg a Railway log-ot
+   3. Keresd meg: "Unique UserIds in project: {120420, 123456}"
+   4. Ez a TE User ID-d (pl: 120420)
+   
+   Beállítás:
    1. Kattints a "⚙️ Settings" gombra
    2. Válaszd a "💬 Prompt Settings" opciót
-   3. Görgess le a "🔗 MiniCRM Felhasználónév" mezőhöz
-   4. Írd be a neved ahogy a MiniCRM-ben szerepel (pl: "Czechner Ince")
+   3. Görgess le a "🔗 MiniCRM Felhasználó ID" mezőhöz
+   4. Írd be a NUMERIKUS ID-t (pl: "120420")
    5. Kattints "💾 Save Settings"
    6. Ezután csak a HOZZÁD rendelt teendők jelennek meg!
    7. Ha üresen hagyod → MINDEN teendő megjelenik
@@ -140,14 +151,16 @@ MINICRM_API_KEY=abc123xyz456
   {
     "business_id": 28260,
     "contact_name": "Juhász András",
-    "filter_user": "Czechner Ince"  // Optional: filter by assigned user
+    "filter_user": "120420"  // Optional: NUMERIC UserId for filtering
   }
   ```
 - `filter_user` paraméter:
-  - **Opcionális**: Ha nincs megadva vagy `null`, minden teendő visszaadásra kerül
-  - **String név**: pl. "Czechner Ince" - case-insensitive matching
-  - **Numerikus ID**: pl. 12345 - pontos egyezés
-  - Csak a megadott felhasználóhoz rendelt teendők jelennek meg
+  - **Opcionális**: Ha nincs megadva vagy üres string, minden teendő visszaadásra kerül
+  - **NUMERIKUS User ID**: pl. "120420" - string formátumban!
+  - ⚠️ A MiniCRM UserId mező NUMERIKUS, NEM név!
+  - Példa: `"UserId": 120420` (MiniCRM todo JSON)
+  - Csak a megadott UserId-hoz rendelt teendők jelennek meg
+  - Debug: Backend log-ban: "Unique UserIds in project: {120420, 123456}"
 - Válasz:
   ```json
   {
