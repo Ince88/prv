@@ -9,6 +9,7 @@ from functools import wraps
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 import openai
+import requests
 import threading
 import secrets
 import webbrowser
