@@ -21,9 +21,14 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
   - Státuszt
 
 ### 3. **Határidő Módosítás**
-- Minden teendőnél van egy dátum választó
-- Új határidő kiválasztása
+- Minden teendőnél van egy dátum és idő választó
+- Új határidő kiválasztása (dátum ÉS idő)
 - "Mentés" gombbal frissíted a MiniCRM-ben
+
+### 4. **Felelős Szerinti Szűrés** 🆕
+- Beállíthatod hogy csak a **hozzád rendelt** teendők jelenjenek meg
+- Settings → Prompt Settings → "MiniCRM Felhasználónév"
+- Ha üresen hagyod, az **összes** teendő megjelenik
 
 ---
 
@@ -47,10 +52,21 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
 
 3. **Határidő Módosítása**
    ```
-   1. Válassz új dátumot a dátum választóval
+   1. Válassz új dátumot ÉS időpontot (datetime picker)
    2. Kattints a "💾 Mentés" gombra
    3. A MiniCRM-ben azonnal frissül a határidő
    4. Toast üzenet jelenik meg a sikerről
+   ```
+
+4. **Teendők Szűrése Felelős Szerint** 🆕
+   ```
+   1. Kattints a "⚙️ Settings" gombra
+   2. Válaszd a "💬 Prompt Settings" opciót
+   3. Görgess le a "🔗 MiniCRM Felhasználónév" mezőhöz
+   4. Írd be a neved ahogy a MiniCRM-ben szerepel (pl: "Czechner Ince")
+   5. Kattints "💾 Save Settings"
+   6. Ezután csak a HOZZÁD rendelt teendők jelennek meg!
+   7. Ha üresen hagyod → MINDEN teendő megjelenik
    ```
 
 ---
@@ -118,12 +134,20 @@ MINICRM_API_KEY=abc123xyz456
 
 #### 3. `/api/minicrm/get_todos` (POST)
 - Lekérdezi a kapcsolathoz tartozó teendőket
+- Opcionális szűrés felelős szerint
 - Kérés:
   ```json
   {
-    "contact_id": 123
+    "business_id": 28260,
+    "contact_name": "Juhász András",
+    "filter_user": "Czechner Ince"  // Optional: filter by assigned user
   }
   ```
+- `filter_user` paraméter:
+  - **Opcionális**: Ha nincs megadva vagy `null`, minden teendő visszaadásra kerül
+  - **String név**: pl. "Czechner Ince" - case-insensitive matching
+  - **Numerikus ID**: pl. 12345 - pontos egyezés
+  - Csak a megadott felhasználóhoz rendelt teendők jelennek meg
 - Válasz:
   ```json
   {
