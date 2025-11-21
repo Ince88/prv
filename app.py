@@ -1157,6 +1157,15 @@ def minicrm_get_todos():
                     else:
                         todo_items = results
                     
+                    # Collect unique UserIds for debugging
+                    unique_user_ids = set()
+                    for todo in todo_items:
+                        user_id = todo.get('UserId')
+                        if user_id:
+                            unique_user_ids.add(user_id)
+                    
+                    print(f"Unique UserIds in project {project_name}: {unique_user_ids}")
+                    
                     # Format todos for frontend
                     for todo in todo_items:
                         # Filter by user if specified
@@ -1164,18 +1173,28 @@ def minicrm_get_todos():
                         
                         # If filter_user is set, only include todos assigned to that user
                         if filter_user and todo_user_id:
-                            # UserId can be either a name (string) or numeric ID
-                            # Match both exact string and case-insensitive comparison
-                            if isinstance(todo_user_id, str):
-                                if todo_user_id.strip().lower() != filter_user.strip().lower():
-                                    continue  # Skip this todo
-                            else:
-                                # If numeric ID, convert filter_user to int and compare
-                                try:
-                                    if int(todo_user_id) != int(filter_user):
-                                        continue
-                                except (ValueError, TypeError):
-                                    continue  # Skip if conversion fails
+                            # UserId in MiniCRM is typically a NUMERIC ID
+                            # User may enter either:
+                            # 1. Numeric ID (e.g., "120420")
+                            # 2. User name (will NOT match numeric UserId!)
+                            
+                            is_match = False
+                            
+                            # Try numeric comparison first
+                            try:
+                                if str(todo_user_id) == str(filter_user):
+                                    is_match = True
+                            except:
+                                pass
+                            
+                            # If still no match and both are strings, try case-insensitive
+                            if not is_match and isinstance(todo_user_id, str) and isinstance(filter_user, str):
+                                if todo_user_id.strip().lower() == filter_user.strip().lower():
+                                    is_match = True
+                            
+                            if not is_match:
+                                print(f"Filtered out todo {todo.get('Id')}: UserId {todo_user_id} != filter {filter_user}")
+                                continue  # Skip this todo
                         
                         formatted_todo = {
                             'id': todo.get('Id'),

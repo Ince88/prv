@@ -12,7 +12,7 @@ let emailPrompts = JSON.parse(localStorage.getItem('emailPrompts')) || [];
 let promptSettings = JSON.parse(localStorage.getItem('promptSettings')) || {
     userName: 'Czechner Ince',
     userEmail: 'ince@prv.hu',
-    miniCrmUserName: 'Czechner Ince',  // MiniCRM UserId for filtering todos
+    miniCrmUserName: '',  // MiniCRM numeric UserId for filtering todos (e.g., "120420")
     roleAndGoal: `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
 
 Your primary goal:
@@ -91,8 +91,9 @@ KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég
 // Migration for existing users - ensure all new fields exist
 let needsMigration = false;
 
-if (!promptSettings.miniCrmUserName) {
-    promptSettings.miniCrmUserName = promptSettings.userName || 'Czechner Ince';
+if (promptSettings.miniCrmUserName === undefined) {
+    // Default to empty (show all todos) - user needs to set their numeric ID
+    promptSettings.miniCrmUserName = '';
     needsMigration = true;
 }
 
@@ -2808,21 +2809,23 @@ function openPromptSettingsModal() {
             </div>
         </div>
         
-        <!-- MiniCRM User Name -->
+        <!-- MiniCRM User ID -->
         <div style="margin-bottom: 24px;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
-                🔗 MiniCRM Felhasználónév:
+                🔗 MiniCRM Felhasználó ID:
             </label>
-            <input type="text" id="prompt-minicrm-user" value="${promptSettings.miniCrmUserName || promptSettings.userName}" style="
+            <input type="text" id="prompt-minicrm-user" value="${promptSettings.miniCrmUserName || ''}" style="
                 width: 100%;
                 padding: 12px;
                 border: 2px solid #dee2e6;
                 border-radius: 8px;
                 font-size: 14px;
                 box-sizing: border-box;
-            " placeholder="e.g., Czechner Ince">
+            " placeholder="e.g., 120420">
             <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                A neved ahogy a MiniCRM-ben szerepel (UserId). Csak a hozzád rendelt teendők jelennek meg. Hagyd üresen az összeshez.
+                ⚠️ A <strong>NUMERIKUS</strong> MiniCRM User ID-d (pl: 120420), NEM a neved!<br>
+                Hogyan találod meg: Beállítások → Profil, vagy nézd meg az email betöltés után a Railway log-ot ("Unique UserIds").<br>
+                Hagyd üresen ha az ÖSSZES teendőt látni akarod.
             </div>
         </div>
         
@@ -3120,7 +3123,7 @@ function resetPromptSettings() {
         promptSettings = {
             userName: 'Czechner Ince',
             userEmail: 'ince@prv.hu',
-            miniCrmUserName: 'Czechner Ince',
+            miniCrmUserName: '',  // Empty = show all todos
             roleAndGoal: `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
 
 Your primary goal:
@@ -3750,7 +3753,7 @@ async function loadMiniCRMTodos(email) {
             return;
         }
         
-        console.log(`Fetching todos for Business ID: ${businessId}, Filter by user: ${promptSettings.miniCrmUserName || 'All'}`);
+        console.log(`Fetching todos for Business ID: ${businessId}, Filter by User ID: ${promptSettings.miniCrmUserName || 'All (no filter)'}`);
         
         const todosResponse = await fetch('/api/minicrm/get_todos', {
             method: 'POST',
