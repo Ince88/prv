@@ -1387,6 +1387,134 @@ def minicrm_update_todo_deadline():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/minicrm/daily_todos', methods=['POST'])
+@requires_auth
+def minicrm_daily_todos():
+    """Get all overdue and today's todos from selected category"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        data = request.json
+        category_id = data.get('category_id')  # ACS: 23, PCS: 41
+        filter_user_id = data.get('filter_user')
+        
+        print(f"MiniCRM daily_todos called")
+        print(f"Category: {category_id}, Filter User: {filter_user_id}")
+        
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
+        
+        # Step 1: Get all projects in the category
+        projects_url = f"https://r3.minicrm.hu/Api/R3/Project"
+        projects_params = {}
+        if category_id:
+            projects_params['CategoryId'] = category_id
+        
+        print(f"Fetching projects: {projects_url} with params: {projects_params}")
+        projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
+        
+        if projects_response.status_code != 200:
+            print(f"Error fetching projects: {projects_response.status_code} - {projects_response.text}")
+            return jsonify({'error': f'Failed to fetch projects: {projects_response.status_code}'}), 500
+        
+        projects_data = projects_response.json()
+        projects_results = projects_data.get('Results', {})
+        
+        print(f"Found {len(projects_results)} projects")
+        
+        # Step 2: Get today's date for filtering
+        from datetime import datetime, date
+        today = date.today()
+        today_str = today.strftime('%Y-%m-%d')
+        
+        print(f"Today's date: {today_str}")
+        
+        all_todos = []
+        
+        # Step 3: For each project, fetch todos
+        for project_id, project_info in projects_results.items():
+            project_name = project_info.get('Name', 'Unknown')
+            
+            # Fetch todos for this project (only Open status)
+            todos_url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
+            todos_params = {'Status': 'Open'}
+            
+            try:
+                todos_response = requests.get(todos_url, auth=auth, params=todos_params, timeout=10)
+                
+                if todos_response.status_code == 200:
+                    todos_data = todos_response.json()
+                    
+                    # Handle both dict and list responses
+                    if isinstance(todos_data, dict):
+                        todos_list = todos_data.get('Results', [])
+                    else:
+                        todos_list = todos_data
+                    
+                    # Process each todo
+                    for todo in todos_list:
+                        todo_deadline = todo.get('Deadline', '')
+                        todo_user_id = todo.get('UserId')
+                        
+                        # Filter by user if specified
+                        if filter_user_id and str(todo_user_id) != str(filter_user_id):
+                            continue
+                        
+                        # Filter by deadline (overdue or today only)
+                        if todo_deadline:
+                            try:
+                                deadline_date_str = todo_deadline.split(' ')[0]  # Get YYYY-MM-DD part
+                                deadline_date = datetime.strptime(deadline_date_str, '%Y-%m-%d').date()
+                                
+                                # Only include if overdue or today
+                                if deadline_date <= today:
+                                    todo['project_name'] = project_name
+                                    todo['project_id'] = project_id
+                                    all_todos.append(todo)
+                            except ValueError:
+                                # Skip if date parsing fails
+                                continue
+            
+            except requests.exceptions.Timeout:
+                print(f"Timeout fetching todos for project {project_id}")
+                continue
+            except Exception as e:
+                print(f"Error fetching todos for project {project_id}: {str(e)}")
+                continue
+        
+        # Step 4: Sort todos by deadline (oldest first)
+        all_todos.sort(key=lambda x: x.get('Deadline', ''))
+        
+        # Step 5: Count overdue vs today
+        overdue_count = 0
+        today_count = 0
+        
+        for todo in all_todos:
+            deadline_str = todo.get('Deadline', '').split(' ')[0]
+            if deadline_str < today_str:
+                overdue_count += 1
+            elif deadline_str == today_str:
+                today_count += 1
+        
+        print(f"Total todos: {len(all_todos)} (Overdue: {overdue_count}, Today: {today_count})")
+        
+        return jsonify({
+            'success': True,
+            'todos': all_todos,
+            'total': len(all_todos),
+            'overdue': overdue_count,
+            'today': today_count
+        })
+    
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'MiniCRM API timeout'}), 408
+    except Exception as e:
+        print(f"Error fetching daily todos: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     

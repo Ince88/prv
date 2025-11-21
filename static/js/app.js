@@ -303,6 +303,7 @@ function initializeApp() {
     const setupBtn = document.getElementById('setup-btn');
     const emailInput = document.getElementById('email-input');
     const bulkEmailBtn = document.getElementById('bulk-email-btn');
+    const dailyTodosBtn = document.getElementById('daily-todos-btn');
     
     // Check API configuration
     checkAPIConfiguration();
@@ -342,6 +343,7 @@ function initializeApp() {
     contactSearchBtn.addEventListener('click', openContactSearch);
     setupBtn.addEventListener('click', openSetupWizard);
     bulkEmailBtn.addEventListener('click', openBulkEmailModal);
+    dailyTodosBtn.addEventListener('click', openDailyTodosView);
     
     // Focus input
     messageInput.focus();
@@ -4102,3 +4104,327 @@ function formatDate(dateString) {
     
     return `${year}-${month}-${day}`;
 }
+
+// ============================================
+// DAILY TODOS VIEW
+// ============================================
+
+async function openDailyTodosView() {
+    showToast('📋 Loading today\'s todos...', 'info');
+    
+    try {
+        // Check if MiniCRM is configured
+        const statusResponse = await fetch('/api/minicrm/status');
+        const statusData = await statusResponse.json();
+        
+        if (!statusData.enabled) {
+            showToast('❌ MiniCRM integration not configured', 'error');
+            return;
+        }
+        
+        // Fetch todos
+        const response = await fetch('/api/minicrm/daily_todos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                category_id: promptSettings.miniCrmCategoryId || null,
+                filter_user: promptSettings.miniCrmUserId || null
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`✅ Loaded ${data.total} todos (${data.overdue} overdue, ${data.today} today)`, 'success');
+            displayDailyTodosModal(data.todos, data.overdue, data.today);
+        } else {
+            showToast('❌ ' + (data.error || 'Failed to load todos'), 'error');
+        }
+    } catch (error) {
+        console.error('Error loading daily todos:', error);
+        showToast('❌ Error: ' + error.message, 'error');
+    }
+}
+
+function displayDailyTodosModal(todos, overdueCount, todayCount) {
+    // Remove existing modal if any
+    const existingModal = document.getElementById('daily-todos-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.id = 'daily-todos-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        backdrop-filter: blur(8px);
+        padding: 20px;
+        overflow-y: auto;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 24px;
+        padding: 0;
+        max-width: 1200px;
+        width: 95%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+    `;
+    
+    // Category name
+    const categoryName = promptSettings.miniCrmCategoryId === '23' ? 'ACS' : 
+                        promptSettings.miniCrmCategoryId === '41' ? 'PCS' : 'Összes';
+    
+    modalContent.innerHTML = `
+        <!-- Header -->
+        <div style="
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            padding: 32px;
+            border-radius: 24px 24px 0 0;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+        ">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                    <h1 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 800; color: white;">
+                        📋 Mai Teendők
+                    </h1>
+                    <div style="font-size: 16px; color: rgba(255, 255, 255, 0.9); font-weight: 500;">
+                        ${new Date().toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+                    </div>
+                    <div style="margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap;">
+                        <div style="background: rgba(255, 255, 255, 0.2); padding: 8px 16px; border-radius: 12px;">
+                            <span style="font-size: 24px; font-weight: 700;">${todos.length}</span>
+                            <span style="font-size: 14px; opacity: 0.9; margin-left: 6px;">feladat</span>
+                        </div>
+                        ${overdueCount > 0 ? `
+                        <div style="background: rgba(231, 76, 60, 0.3); padding: 8px 16px; border-radius: 12px;">
+                            <span style="font-size: 24px; font-weight: 700;">⚠️ ${overdueCount}</span>
+                            <span style="font-size: 14px; opacity: 0.9; margin-left: 6px;">lejárt</span>
+                        </div>
+                        ` : ''}
+                        <div style="background: rgba(255, 255, 255, 0.2); padding: 8px 16px; border-radius: 12px;">
+                            <span style="font-size: 14px; opacity: 0.9;">📦 ${categoryName}</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="closeDailyTodosModal()" style="
+                    background: rgba(255, 255, 255, 0.2);
+                    border: none;
+                    color: white;
+                    font-size: 28px;
+                    cursor: pointer;
+                    border-radius: 12px;
+                    width: 44px;
+                    height: 44px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.2s;
+                " onmouseover="this.style.background='rgba(255, 255, 255, 0.3)'"
+                   onmouseout="this.style.background='rgba(255, 255, 255, 0.2)'">×</button>
+            </div>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 32px;">
+            ${todos.length === 0 ? `
+                <div style="text-align: center; padding: 60px 20px; color: white;">
+                    <div style="font-size: 64px; margin-bottom: 16px;">🎉</div>
+                    <div style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">Minden rendben!</div>
+                    <div style="font-size: 16px; opacity: 0.8;">Nincs mai vagy lejárt teendő.</div>
+                </div>
+            ` : `
+                <div style="display: grid; gap: 20px;">
+                    ${todos.map(todo => {
+                        const deadline = todo.Deadline.split(' ')[0];
+                        const isOverdue = deadline < today;
+                        
+                        return `
+                        <div style="
+                            background: rgba(255, 255, 255, 0.95);
+                            border-radius: 16px;
+                            padding: 24px;
+                            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                            ${isOverdue ? 'border-left: 6px solid #e74c3c;' : 'border-left: 6px solid #27ae60;'}
+                            transition: all 0.3s;
+                        " onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 30px rgba(0, 0, 0, 0.15)'"
+                           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 20px rgba(0, 0, 0, 0.1)'">
+                            <!-- Header -->
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                                <div style="flex: 1;">
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                                        <span style="background: #667eea; color: white; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+                                            🏢 ${todo.project_name}
+                                        </span>
+                                        ${isOverdue ? '<span style="background: #e74c3c; color: white; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">⚠️ LEJÁRT</span>' : '<span style="background: #27ae60; color: white; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">📅 MA</span>'}
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 14px; color: ${isOverdue ? '#e74c3c' : '#27ae60'}; font-weight: 600; margin-bottom: 4px;">
+                                        ⏰ ${todo.Deadline.split(' ')[1].slice(0, 5)}
+                                    </div>
+                                    <div style="font-size: 12px; color: #7f8c8d;">
+                                        ${formatDate(todo.Deadline)}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Todo Text (Editable) -->
+                            <div style="margin-bottom: 16px;">
+                                <textarea id="daily-todo-text-${todo.Id}" style="
+                                    width: 100%;
+                                    padding: 12px;
+                                    border: 2px solid #e0e0e0;
+                                    border-radius: 8px;
+                                    font-size: 15px;
+                                    font-family: inherit;
+                                    resize: vertical;
+                                    min-height: 60px;
+                                    box-sizing: border-box;
+                                ">${todo.Comment}</textarea>
+                            </div>
+                            
+                            <!-- Deadline Editor -->
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <input type="date" id="daily-todo-date-${todo.Id}" value="${todo.Deadline.split(' ')[0]}" style="
+                                    padding: 10px;
+                                    border: 2px solid #e0e0e0;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                ">
+                                <input type="time" id="daily-todo-time-${todo.Id}" value="${todo.Deadline.split(' ')[1].slice(0, 5)}" style="
+                                    padding: 10px;
+                                    border: 2px solid #e0e0e0;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                    display: none;
+                                ">
+                                <button onclick="toggleDailyTodoTime(${todo.Id})" style="
+                                    padding: 10px 16px;
+                                    background: #f0f0f0;
+                                    color: #333;
+                                    border: 2px solid #e0e0e0;
+                                    border-radius: 8px;
+                                    cursor: pointer;
+                                    font-weight: 600;
+                                    font-size: 13px;
+                                    white-space: nowrap;
+                                    transition: all 0.2s;
+                                " onmouseover="this.style.background='#e0e0e0'"
+                                   onmouseout="this.style.background='#f0f0f0'">
+                                    🕐 Idő
+                                </button>
+                                <button onclick="updateDailyTodo(${todo.Id})" style="
+                                    padding: 10px 20px;
+                                    background: #27ae60;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 8px;
+                                    cursor: pointer;
+                                    font-weight: 600;
+                                    font-size: 14px;
+                                    white-space: nowrap;
+                                    transition: all 0.2s;
+                                " onmouseover="this.style.background='#229954'"
+                                   onmouseout="this.style.background='#27ae60'">
+                                    💾 Mentés
+                                </button>
+                            </div>
+                        </div>
+                    `}).join('')}
+                </div>
+            `}
+        </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+}
+
+function closeDailyTodosModal() {
+    const modal = document.getElementById('daily-todos-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function toggleDailyTodoTime(todoId) {
+    const timeInput = document.getElementById(`daily-todo-time-${todoId}`);
+    if (timeInput) {
+        if (timeInput.style.display === 'none') {
+            timeInput.style.display = 'block';
+        } else {
+            timeInput.style.display = 'none';
+            timeInput.value = '';
+        }
+    }
+}
+
+async function updateDailyTodo(todoId) {
+    const textArea = document.getElementById(`daily-todo-text-${todoId}`);
+    const dateInput = document.getElementById(`daily-todo-date-${todoId}`);
+    const timeInput = document.getElementById(`daily-todo-time-${todoId}`);
+    
+    const todoText = textArea.value.trim();
+    const dateValue = dateInput.value;
+    const timeValue = timeInput.value;
+    
+    if (!todoText) {
+        showToast('❌ A teendő szövege nem lehet üres!', 'error');
+        return;
+    }
+    
+    if (!dateValue) {
+        showToast('❌ Kérlek válassz dátumot!', 'error');
+        return;
+    }
+    
+    // If time input is visible and has value, use it; otherwise default to 23:59
+    const time = (timeInput.style.display !== 'none' && timeValue) ? timeValue : '23:59';
+    const formattedDeadline = `${dateValue} ${time}:00`;
+    
+    try {
+        const response = await fetch('/api/minicrm/update_todo', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                todo_id: todoId,
+                comment: todoText,
+                deadline: formattedDeadline
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+            // Reload the modal
+            setTimeout(() => openDailyTodosView(), 1000);
+        } else {
+            showToast('❌ ' + (data.error || 'Hiba történt'), 'error');
+        }
+    } catch (error) {
+        showToast('❌ Hiba: ' + error.message, 'error');
+    }
+}
+
+// Make functions available globally
+window.closeDailyTodosModal = closeDailyTodosModal;
+window.toggleDailyTodoTime = toggleDailyTodoTime;
+window.updateDailyTodo = updateDailyTodo;
