@@ -1541,8 +1541,14 @@ def minicrm_daily_todos():
                                 # Skip if date parsing fails
                                 continue
                     
-                    if project_count <= 10 and (todos_filtered_by_user > 0 or todos_filtered_by_date > 0):
+                    if project_count <= 10 and (todos_filtered_by_user > 0 or todos_filtered_by_date > 0 or todos_found_in_project > 0):
                         print(f"  → Kept {todos_found_in_project}, filtered: {todos_filtered_by_user} by user, {todos_filtered_by_date} by date")
+                        # Show first todo's deadline for debugging
+                        if len(todos_list) > 0 and isinstance(todos_list, list):
+                            first_todo = todos_list[0]
+                            deadline_str = first_todo.get('Deadline', 'N/A')
+                            user_id = first_todo.get('UserId', 'N/A')
+                            print(f"     First todo: deadline={deadline_str}, userId={user_id} (filter_user={filter_user_id}, today={today_str})")
             
             except requests.exceptions.Timeout:
                 print(f"Timeout fetching todos for project {project_id}")
