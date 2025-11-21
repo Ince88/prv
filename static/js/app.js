@@ -14,6 +14,7 @@ let promptSettings = JSON.parse(localStorage.getItem('promptSettings')) || {
     userEmail: 'ince@prv.hu',
     miniCrmUserName: '',  // MiniCRM numeric UserId for filtering todos (e.g., "120420")
     miniCrmCategoryId: '23',  // MiniCRM Termék CategoryId: ACS=23, PCS=41
+    miniCrmLookbackDays: 30,  // Only fetch projects updated in last N days for daily todos
     roleAndGoal: `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
 
 Your primary goal:
@@ -101,6 +102,12 @@ if (promptSettings.miniCrmUserName === undefined) {
 if (!promptSettings.miniCrmCategoryId) {
     // Default to ACS (CategoryId: 23)
     promptSettings.miniCrmCategoryId = '23';
+    needsMigration = true;
+}
+
+if (!promptSettings.miniCrmLookbackDays) {
+    // Default to 30 days lookback for daily todos
+    promptSettings.miniCrmLookbackDays = 30;
     needsMigration = true;
 }
 
@@ -2863,6 +2870,27 @@ function openPromptSettingsModal() {
             </div>
         </div>
         
+        <!-- MiniCRM Lookback Days -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                📅 "Mai Teendők" Keresési Időszak (napok):
+            </label>
+            <input type="number" id="prompt-minicrm-lookback" value="${promptSettings.miniCrmLookbackDays || 30}" min="1" max="365" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                box-sizing: border-box;
+            " placeholder="30">
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                A "Mai Teendők" gomb csak azokat a projekteket keresi, amelyek az elmúlt X napban frissültek.<br>
+                <strong>Alacsonyabb érték = gyorsabb, de lehet hogy nem talál mindent.</strong><br>
+                <strong>Magasabb érték = lassabb, de több projektet vizsgál.</strong><br>
+                Alapértelmezett: 30 nap (legtöbb esetben elegendő)
+            </div>
+        </div>
+        
         <!-- Role & Goal -->
         <div style="margin-bottom: 24px;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
@@ -3137,6 +3165,7 @@ function savePromptSettingsFromModal() {
     promptSettings.userEmail = document.getElementById('prompt-user-email').value.trim();
     promptSettings.miniCrmUserName = document.getElementById('prompt-minicrm-user').value.trim();
     promptSettings.miniCrmCategoryId = document.getElementById('prompt-minicrm-category').value;
+    promptSettings.miniCrmLookbackDays = parseInt(document.getElementById('prompt-minicrm-lookback').value) || 30;
     promptSettings.roleAndGoal = document.getElementById('prompt-role-goal').value.trim();
     promptSettings.businessModel = document.getElementById('prompt-business-model').value.trim();
     promptSettings.toneAndStyle = document.getElementById('prompt-tone-style').value.trim();
@@ -3160,6 +3189,7 @@ function resetPromptSettings() {
             userEmail: 'ince@prv.hu',
             miniCrmUserName: '',  // Empty = show all todos
             miniCrmCategoryId: '23',  // Default to ACS
+            miniCrmLookbackDays: 30,  // Default lookback period
             roleAndGoal: `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
 
 Your primary goal:
@@ -4128,7 +4158,8 @@ async function openDailyTodosView() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 category_id: promptSettings.miniCrmCategoryId || null,
-                filter_user: promptSettings.miniCrmUserId || null
+                filter_user: promptSettings.miniCrmUserId || null,
+                lookback_days: promptSettings.miniCrmLookbackDays || 30
             })
         });
         

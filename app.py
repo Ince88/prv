@@ -1398,19 +1398,28 @@ def minicrm_daily_todos():
         data = request.json
         category_id = data.get('category_id')  # ACS: 23, PCS: 41
         filter_user_id = data.get('filter_user')
+        lookback_days = data.get('lookback_days', 30)  # Default: only fetch projects updated in last 30 days
         
         print(f"MiniCRM daily_todos called")
-        print(f"Category: {category_id}, Filter User: {filter_user_id}")
+        print(f"Category: {category_id}, Filter User: {filter_user_id}, Lookback Days: {lookback_days}")
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
-        # Step 1: Get all projects in the category
+        # Step 1: Calculate UpdatedSince date (optimization: only fetch recently updated projects)
+        from datetime import datetime, date, timedelta
+        updated_since_date = datetime.now() - timedelta(days=lookback_days)
+        updated_since_str = updated_since_date.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Step 2: Get projects in the category that were updated recently
         projects_url = f"https://r3.minicrm.hu/Api/R3/Project"
-        projects_params = {}
+        projects_params = {
+            'UpdatedSince': updated_since_str  # Only fetch recently updated projects
+        }
         if category_id:
             projects_params['CategoryId'] = category_id
         
-        print(f"Fetching projects: {projects_url} with params: {projects_params}")
+        print(f"Fetching projects updated since {updated_since_str}: {projects_url}")
+        print(f"Params: {projects_params}")
         projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
         
         if projects_response.status_code != 200:
@@ -1420,10 +1429,9 @@ def minicrm_daily_todos():
         projects_data = projects_response.json()
         projects_results = projects_data.get('Results', {})
         
-        print(f"Found {len(projects_results)} projects")
+        print(f"Found {len(projects_results)} projects (updated in last {lookback_days} days)")
         
-        # Step 2: Get today's date for filtering
-        from datetime import datetime, date
+        # Step 3: Get today's date for filtering
         today = date.today()
         today_str = today.strftime('%Y-%m-%d')
         
@@ -1431,7 +1439,7 @@ def minicrm_daily_todos():
         
         all_todos = []
         
-        # Step 3: For each project, fetch todos
+        # Step 4: For each project, fetch todos
         for project_id, project_info in projects_results.items():
             project_name = project_info.get('Name', 'Unknown')
             
@@ -1482,10 +1490,10 @@ def minicrm_daily_todos():
                 print(f"Error fetching todos for project {project_id}: {str(e)}")
                 continue
         
-        # Step 4: Sort todos by deadline (oldest first)
+        # Step 5: Sort todos by deadline (oldest first)
         all_todos.sort(key=lambda x: x.get('Deadline', ''))
         
-        # Step 5: Count overdue vs today
+        # Step 6: Count overdue vs today
         overdue_count = 0
         today_count = 0
         
