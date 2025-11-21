@@ -1308,192 +1308,141 @@ def minicrm_get_todos():
 @app.route('/api/minicrm/daily_todos', methods=['POST'])
 @requires_auth
 def minicrm_daily_todos():
-    """Get all todos for today and overdue across all user's projects"""
+    """Get all todos for today and overdue - FAST METHOD: Query by date directly"""
     if not MINICRM_ENABLED:
         return jsonify({'error': 'MiniCRM integration not configured'}), 400
     
     try:
-        from datetime import date, datetime
+        from datetime import date, datetime, timedelta
         
         data = request.json or {}
         category_id = data.get('category_id')
         filter_user = data.get('filter_user')
         
-        today = date.today().strftime('%Y-%m-%d')
+        today = date.today()
+        today_str = today.strftime('%Y-%m-%d')
         
-        print(f"Fetching daily+overdue todos for {today} (Category: {category_id or 'All'}, User: {filter_user or 'All'})")
+        # Get everything from way back to catch all overdue
+        overdue_start = (today - timedelta(days=365)).strftime('%Y-%m-%d')  # 1 year back
+        
+        print(f"🚀 FAST METHOD: Querying todos by date ({overdue_start} to {today_str})")
+        print(f"   Filters: Category={category_id or 'All'}, User={filter_user or 'All'}")
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
-        # Step 1: Get ALL projects with pagination (with optional CategoryId filter)
-        projects_url = "https://r3.minicrm.hu/Api/R3/Project"
-        projects_params = {}
+        # Try direct ToDo query (this might work!)
+        # MiniCRM may support: /Api/R3/ToDo with query parameters
+        todo_url = "https://r3.minicrm.hu/Api/R3/ToDo"
         
-        if category_id:
-            projects_params['CategoryId'] = category_id
-        
-        print(f"Getting all projects: {projects_url}")
-        
-        # Fetch ALL projects with pagination
-        all_projects = {}
+        all_todos = []
         page = 1
-        max_pages = 10  # Safety limit
+        max_pages = 10
         
         while page <= max_pages:
-            projects_params['Page'] = page
+            params = {
+                'Status': 'Open',
+                'Page': page
+            }
             
-            print(f"Fetching page {page}...")
-            projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
+            # Try deadline filtering (parameter names might vary)
+            # Common options: Deadline, DeadlineTo, DeadlineFrom, etc.
+            params['DeadlineTo'] = today_str  # Everything up to today
             
-            if projects_response.status_code != 200:
-                return jsonify({'error': f'Failed to get projects: {projects_response.status_code}'}), 500
-            
-            projects_data = projects_response.json()
-            projects_results = projects_data.get('Results', {})
-            total_count = projects_data.get('Count', 0)
-            
-            print(f"Page {page}: Got {len(projects_results)} projects (Total in CRM: {total_count})")
-            
-            if not projects_results:
-                break
-            
-            # Merge results
-            if isinstance(projects_results, dict):
-                all_projects.update(projects_results)
-            else:
-                # If it's a list, convert to dict
-                for proj in projects_results:
-                    all_projects[proj.get('Id')] = proj
-            
-            # Check if we got all
-            if len(all_projects) >= total_count:
-                break
-            
-            page += 1
-        
-        projects_results = all_projects
-        print(f"✅ Total projects fetched: {len(projects_results)}")
-        
-        # Step 2: Get todos from all projects (excluding irrelevant statuses)
-        all_todos = []
-        projects_processed = 0
-        projects_skipped = 0
-        projects_with_todos = 0
-        status_counts = {}  # Track status distribution for debugging
-        
-        # Status IDs to exclude (Lost/Closed deals)
-        # CONFIGURE THESE based on your CRM schema - check logs to see what StatusIds appear
-        EXCLUDED_STATUS_IDS = [2695, 2698, 2699]  # Placeholder - will log actual IDs below
-        # You can also add status names to check
-        EXCLUDED_STATUS_NAMES = ['Vesztett', 'vesztett', 'Törölve', 'törölve', 'Lezárt', 'lezárt', 'Closed']
-        
-        for project_id_str, project_info in (projects_results.items() if isinstance(projects_results, dict) else enumerate(projects_results)):
-            project_id = project_info.get('Id')
-            project_name = project_info.get('Name', 'Unknown')
-            status_id = project_info.get('StatusId')
-            status_name = project_info.get('Status', '')  # Some responses include status name
-            projects_processed += 1
-            
-            # Track status distribution
-            status_key = f"{status_id}:{status_name}" if status_name else str(status_id)
-            status_counts[status_key] = status_counts.get(status_key, 0) + 1
-            
-            # Skip "Vesztett" and other irrelevant statuses
-            if status_id in EXCLUDED_STATUS_IDS or status_name in EXCLUDED_STATUS_NAMES:
-                projects_skipped += 1
-                if projects_skipped <= 5:  # Log first few
-                    print(f"⏭️  Skipping project '{project_name}' (Status: {status_name or status_id})")
-                continue
-            
-            if projects_processed % 20 == 0:
-                print(f"Progress: {projects_processed}/{len(projects_results)} projects processed ({projects_skipped} skipped)...")
+            print(f"Attempting direct ToDo query (page {page})...")
             
             try:
-                # Get Open todos only (Active tasks)
-                todo_url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
-                todo_params = {'Status': 'Open'}
+                response = requests.get(todo_url, auth=auth, params=params, timeout=15)
                 
-                todo_response = requests.get(todo_url, auth=auth, params=todo_params, timeout=10)
+                print(f"Response status: {response.status_code}")
                 
-                if todo_response.status_code == 200:
-                    todo_data = todo_response.json()
-                    todos = todo_data.get('Results', [])
+                if response.status_code == 200:
+                    data = response.json()
+                    todos = data.get('Results', [])
                     
                     if isinstance(todos, dict):
                         todos = list(todos.values())
                     
-                    if todos:
-                        projects_with_todos += 1
+                    print(f"Page {page}: Found {len(todos)} todos")
+                    
+                    if not todos:
+                        break
                     
                     for todo in todos:
                         deadline_str = todo.get('Deadline', '')
                         if not deadline_str:
                             continue
                         
-                        # Parse deadline
                         try:
                             deadline_date = datetime.strptime(deadline_str.split(' ')[0], '%Y-%m-%d').date()
                         except:
                             continue
                         
-                        # Filter: today or overdue (deadline <= today)
-                        if deadline_date <= date.today():
+                        # Only include today or overdue
+                        if deadline_date <= today:
                             todo_user_id = todo.get('UserId', '')
                             
-                            # Apply user filter if specified
+                            # Apply user filter
                             if filter_user and str(todo_user_id) != str(filter_user):
                                 continue
                             
-                            # Determine if overdue
-                            is_overdue = deadline_date < date.today()
+                            is_overdue = deadline_date < today
+                            
+                            # Get project info if available
+                            project_id = todo.get('ProjectId') or todo.get('ContactId')
                             
                             all_todos.append({
                                 'id': todo.get('Id'),
                                 'title': todo.get('Comment', 'Névtelen teendő'),
-                                'description': todo.get('Comment', ''),  # Full text
+                                'description': todo.get('Comment', ''),
                                 'deadline': deadline_str,
                                 'status': todo.get('Status', 'Open'),
                                 'project_id': project_id,
-                                'project_name': project_name,
-                                'project_status_id': status_id,
+                                'project_name': todo.get('ProjectName', 'Unknown'),
                                 'assigned_to': todo_user_id,
                                 'is_overdue': is_overdue,
                                 'category': 'ACS' if category_id == '23' else 'PCS' if category_id == '41' else 'Unknown'
                             })
+                    
+                    if len(todos) < 100:  # Last page
+                        break
+                    
+                    page += 1
+                
+                else:
+                    print(f"⚠️  Direct ToDo query not supported (HTTP {response.status_code})")
+                    print(f"Response: {response.text[:200]}")
+                    raise Exception("Direct date query not supported by API")
             
             except Exception as e:
-                print(f"Error getting todos for project {project_id}: {str(e)}")
-                continue
+                print(f"Direct query failed: {str(e)}")
+                raise
         
         # Sort: overdue first, then by deadline
         all_todos.sort(key=lambda x: (not x['is_overdue'], x['deadline']))
         
         overdue_count = sum(1 for t in all_todos if t['is_overdue'])
-        print(f"✅ FINAL RESULTS:")
-        print(f"   - Projects total: {projects_processed}")
-        print(f"   - Projects skipped (Vesztett/Closed): {projects_skipped}")
-        print(f"   - Projects checked: {projects_processed - projects_skipped}")
-        print(f"   - Projects with todos: {projects_with_todos}")
-        print(f"   - Total todos for today+overdue: {len(all_todos)}")
+        print(f"✅ RESULTS (Fast Method):")
+        print(f"   - Total todos: {len(all_todos)}")
         print(f"   - Overdue: {overdue_count}")
         print(f"   - Today: {len(all_todos) - overdue_count}")
-        print(f"\n📊 Status Distribution (Top 10):")
-        for status, count in sorted(status_counts.items(), key=lambda x: -x[1])[:10]:
-            print(f"   - {status}: {count} projects")
         
         return jsonify({
             'success': True,
-            'date': today,
+            'date': today_str,
             'todos': all_todos,
             'total': len(all_todos),
-            'overdue': sum(1 for t in all_todos if t['is_overdue'])
+            'overdue': overdue_count
         })
     
     except Exception as e:
-        print(f"Error getting daily todos: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ Fast method failed: {str(e)}")
+        print("Falling back to project-based query...")
+        
+        # FALLBACK: If direct date query doesn't work, inform user
+        return jsonify({
+            'error': 'MiniCRM API does not support direct date-based todo queries. Need alternative approach.',
+            'details': str(e)
+        }), 400
 
 
 @app.route('/api/minicrm/update_todo_text', methods=['POST'])
@@ -1545,7 +1494,7 @@ def minicrm_get_project_statuses():
         return jsonify({'error': 'MiniCRM integration not configured'}), 400
     
     try:
-        data = request.json
+        data = request.json or {}
         category_id = data.get('category_id', '23')  # Default to ACS
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
@@ -1560,17 +1509,30 @@ def minicrm_get_project_statuses():
             status_field = schema_data.get('StatusId', {})
             statuses = status_field.get('Values', {})
             
-            # Convert to list format
+            # Convert to list format with all details
             status_list = [
-                {'id': status_id, 'name': status_info.get('Name', status_id)}
+                {
+                    'id': int(status_id), 
+                    'name': status_info.get('Name', status_id),
+                    'color': status_info.get('Color', ''),
+                    'is_active': status_info.get('Name', '').lower() not in ['vesztett', 'nyert', 'lezárt', 'törölve']
+                }
                 for status_id, status_info in statuses.items()
             ]
             
-            print(f"Found {len(status_list)} statuses")
+            # Sort by ID
+            status_list.sort(key=lambda x: x['id'])
+            
+            # Log for easy configuration
+            print(f"Found {len(status_list)} statuses:")
+            print("Active statuses (recommended for ACTIVE_STATUS_IDS):")
+            active_ids = [s['id'] for s in status_list if s['is_active']]
+            print(f"  ACTIVE_STATUS_IDS = {active_ids}")
             
             return jsonify({
                 'success': True,
-                'statuses': status_list
+                'statuses': status_list,
+                'recommended_active_ids': active_ids
             })
         else:
             return jsonify({'error': f'Failed to get statuses: {response.status_code}'}), response.status_code
