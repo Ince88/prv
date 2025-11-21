@@ -1342,9 +1342,10 @@ def minicrm_daily_todos():
             # If no category filter, try both
             ACTIVE_STATUS_IDS = [2777, 2778, 2784, 2786, 2787, 3101, 3102, 3104, 3106, 3107]
         
-        # MAX_PROJECTS_PER_STATUS - Limit to avoid timeout
-        # Increased to catch more todos, but still keep it fast
-        MAX_PROJECTS_PER_STATUS = 100  # 100 projects per status (with parallel fetching, still fast)
+        # MAX_PROJECTS_PER_STATUS - Need to check MANY projects to find all user's todos
+        # User has 51 todos but we're only finding 20 total across all projects
+        # Solution: Check MORE projects (parallel fetching keeps it reasonably fast)
+        MAX_PROJECTS_PER_STATUS = 500  # 500 projects per status (16 statuses × 500 = up to 8000 projects)
         
         print(f"   Fetching max {MAX_PROJECTS_PER_STATUS} projects per status: {ACTIVE_STATUS_IDS}")
         

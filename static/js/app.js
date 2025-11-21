@@ -4070,7 +4070,7 @@ async function openDailyTodosView() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 category_id: promptSettings.miniCrmCategoryId || null,
-                filter_user: promptSettings.miniCrmUserName || null
+                filter_user: promptSettings.miniCrmUserId || null
             })
         });
         
