@@ -969,6 +969,12 @@ def minicrm_status():
 @requires_auth
 def minicrm_find_contact():
     """Find contact in MiniCRM by email address"""
+    # Debug logging
+    print(f"MiniCRM find_contact called")
+    print(f"MINICRM_ENABLED: {MINICRM_ENABLED}")
+    print(f"MINICRM_SYSTEM_ID: {MINICRM_SYSTEM_ID}")
+    print(f"MINICRM_API_KEY: {'[SET]' if MINICRM_API_KEY else '[NOT SET]'}")
+    
     if not MINICRM_ENABLED:
         return jsonify({'error': 'MiniCRM integration not configured'}), 400
     
@@ -979,19 +985,32 @@ def minicrm_find_contact():
         if not email:
             return jsonify({'error': 'Email address required'}), 400
         
+        print(f"Searching for email: {email}")
+        
         # MiniCRM API call to search contacts
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         url = f"https://r3.minicrm.hu/Api/R3/Contact"
         
         # Search by email
         params = {'Email': email}
+        
+        print(f"Making request to: {url}")
+        print(f"Auth: System ID={MINICRM_SYSTEM_ID}")
+        print(f"Params: {params}")
+        
         response = requests.get(url, auth=auth, params=params, timeout=10)
+        
+        print(f"Response status: {response.status_code}")
+        print(f"Response content: {response.text[:200]}")  # First 200 chars
         
         if response.status_code == 200:
             contacts = response.json()
+            print(f"Found {len(contacts) if contacts else 0} contacts")
+            
             if contacts and len(contacts) > 0:
                 # Return first matching contact
                 contact = contacts[0]
+                print(f"Returning contact: {contact.get('Name')}")
                 return jsonify({
                     'found': True,
                     'contact': {
@@ -1003,15 +1022,21 @@ def minicrm_find_contact():
                     }
                 })
             else:
+                print("No contacts found")
                 return jsonify({'found': False, 'message': 'No contact found with this email'})
         else:
-            return jsonify({'error': f'MiniCRM API error: {response.status_code}'}), response.status_code
+            error_msg = f'MiniCRM API error: {response.status_code} - {response.text[:200]}'
+            print(error_msg)
+            return jsonify({'error': error_msg}), response.status_code
     
     except requests.exceptions.Timeout:
+        print("MiniCRM API timeout")
         return jsonify({'error': 'MiniCRM API timeout'}), 408
     except Exception as e:
-        print(f"Error finding contact: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Error finding contact: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'{type(e).__name__}: {str(e)}'}), 500
 
 
 @app.route('/api/minicrm/get_todos', methods=['POST'])
