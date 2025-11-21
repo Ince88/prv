@@ -1110,7 +1110,11 @@ def minicrm_get_todos():
         projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=10)
         
         print(f"Projects response status: {projects_response.status_code}")
-        print(f"Projects response content: {projects_response.text[:500]}")
+        print(f"Projects response content (first 500 chars): {projects_response.text[:500]}")
+        
+        # Debug: Log FULL projects response to see all CategoryIds
+        if projects_response.status_code == 200:
+            print(f"FULL Projects response: {projects_response.text}")
         
         if projects_response.status_code != 200:
             error_msg = f"Failed to get projects: {projects_response.status_code} - {projects_response.text[:200]}"
@@ -1129,6 +1133,10 @@ def minicrm_get_todos():
         
         # Step 2: Get todos from all projects
         all_todos = []
+        
+        # Debug: Log each project with CategoryId
+        for project_id_str, project_info in projects_results.items():
+            print(f"Project found: {project_info.get('Name')} (ID: {project_info.get('Id')}, CategoryId: {project_info.get('CategoryId', 'N/A')})")
         
         for project_id_str, project_info in projects_results.items():
             project_id = project_info.get('Id')
