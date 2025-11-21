@@ -1004,13 +1004,21 @@ def minicrm_find_contact():
         print(f"Response content: {response.text[:200]}")  # First 200 chars
         
         if response.status_code == 200:
-            contacts = response.json()
-            print(f"Found {len(contacts) if contacts else 0} contacts")
+            data = response.json()
+            print(f"Response data structure: {type(data)}")
             
-            if contacts and len(contacts) > 0:
-                # Return first matching contact
-                contact = contacts[0]
-                print(f"Returning contact: {contact.get('Name')}")
+            # MiniCRM API returns: {"Count": 1, "Results": {"28261": {...}}}
+            results = data.get('Results', {})
+            count = data.get('Count', 0)
+            
+            print(f"Found {count} contacts")
+            
+            if results and count > 0:
+                # Get first contact from Results dictionary
+                contact_id = list(results.keys())[0]
+                contact = results[contact_id]
+                print(f"Returning contact: {contact.get('Name')} (ID: {contact_id})")
+                
                 return jsonify({
                     'found': True,
                     'contact': {
@@ -1062,11 +1070,18 @@ def minicrm_get_todos():
         response = requests.get(url, auth=auth, params=params, timeout=10)
         
         if response.status_code == 200:
-            todos = response.json()
+            data = response.json()
+            print(f"Todos response: {type(data)}")
+            
+            # MiniCRM API returns: {"Count": N, "Results": {"id1": {...}, "id2": {...}}}
+            results = data.get('Results', {})
+            count = data.get('Count', 0)
+            
+            print(f"Found {count} todos")
             
             # Format todos for frontend
             formatted_todos = []
-            for todo in todos:
+            for todo_id, todo in results.items():
                 formatted_todos.append({
                     'id': todo.get('Id'),
                     'title': todo.get('Title') or todo.get('Name', 'Névtelen teendő'),
@@ -1075,6 +1090,8 @@ def minicrm_get_todos():
                     'status': todo.get('Status', 'Active'),
                     'completed': todo.get('Completed', False)
                 })
+            
+            print(f"Formatted {len(formatted_todos)} todos")
             
             return jsonify({
                 'success': True,
