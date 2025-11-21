@@ -1429,31 +1429,41 @@ def minicrm_daily_todos():
             projects_params['Page'] = page
             print(f"Fetching page {page}...")
             
-            projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
-            
-            if projects_response.status_code != 200:
-                print(f"Error fetching projects page {page}: {projects_response.status_code} - {projects_response.text}")
+            try:
+                projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=45)
+                
+                if projects_response.status_code != 200:
+                    print(f"❌ Error fetching projects page {page}: {projects_response.status_code} - {projects_response.text}")
+                    break
+                
+                projects_data = projects_response.json()
+                projects_results = projects_data.get('Results', {})
+                
+                if not projects_results:
+                    # No more results
+                    print(f"✓ Page {page}: No more results (end of pagination)")
+                    break
+                
+                print(f"✓ Page {page}: Found {len(projects_results)} projects")
+                all_projects.update(projects_results)
+                
+                # If we got less than 100, this is the last page
+                if len(projects_results) < 100:
+                    print(f"✓ Last page reached (page {page} had {len(projects_results)} < 100 projects)")
+                    break
+                
+                page += 1
+                
+                # Safety limit: max 10 pages (1000 projects)
+                if page >= 10:
+                    print("⚠️ Warning: Reached 10 pages (1000 projects). Stopping pagination.")
+                    break
+                    
+            except requests.exceptions.Timeout:
+                print(f"⏱️ Timeout fetching page {page} - continuing with {len(all_projects)} projects fetched so far")
                 break
-            
-            projects_data = projects_response.json()
-            projects_results = projects_data.get('Results', {})
-            
-            if not projects_results:
-                # No more results
-                break
-            
-            print(f"Page {page}: Found {len(projects_results)} projects")
-            all_projects.update(projects_results)
-            
-            # If we got less than 100, this is the last page
-            if len(projects_results) < 100:
-                break
-            
-            page += 1
-            
-            # Safety limit: max 10 pages (1000 projects)
-            if page >= 10:
-                print("⚠️ Warning: Reached 10 pages (1000 projects). Stopping pagination.")
+            except Exception as e:
+                print(f"❌ Error on page {page}: {str(e)} - continuing with {len(all_projects)} projects")
                 break
         
         projects_results = all_projects
