@@ -1065,16 +1065,13 @@ def minicrm_get_todos():
             return jsonify({'error': 'Contact ID required'}), 400
         
         # MiniCRM API call to get todos
+        # Correct endpoint: /Api/R3/ToDoList/{contact_id}
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
-        url = f"https://r3.minicrm.hu/Api/R3/Todo"
-        
-        # Get todos for this contact
-        params = {'ContactId': contact_id}
+        url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{contact_id}"
         
         print(f"Making TODO request to: {url}")
-        print(f"TODO params: {params}")
         
-        response = requests.get(url, auth=auth, params=params, timeout=10)
+        response = requests.get(url, auth=auth, timeout=10)
         
         print(f"TODO Response status: {response.status_code}")
         print(f"TODO Response content: {response.text[:500]}")
@@ -1134,8 +1131,9 @@ def minicrm_update_todo_deadline():
             return jsonify({'error': 'Todo ID and deadline required'}), 400
         
         # MiniCRM API call to update todo
+        # Correct endpoint: /Api/R3/ToDo/{todo_id} (capital D!)
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
-        url = f"https://r3.minicrm.hu/Api/R3/Todo/{todo_id}"
+        url = f"https://r3.minicrm.hu/Api/R3/ToDo/{todo_id}"
         
         # Update payload
         update_data = {
