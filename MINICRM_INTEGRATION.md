@@ -10,7 +10,10 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
 
 ### 1. **Automatikus Kapcsolat Keresés**
 - Email cím betöltése után automatikusan megkeresi a kapcsolatot a MiniCRM-ben
-- Ha talál egyezést, lekérdezi a hozzá tartozó teendőket
+- **FONTOS**: Egy email cím több Contact-ként is szerepelhet (pl: különböző szerepkörök)
+  - Példa: Koch Emil mint projekt cég kapcsolattartó (PCS) ÉS mint beszállító kapcsolattartó (ACS)
+  - A rendszer **MINDEN Contact-ot** megtalál és **MINDEN projektjüket** lekérdezi
+- Ha talál egyezést, lekérdezi a hozzá tartozó teendőket az **összes projektből**
 
 ### 2. **Teendők Megjelenítése**
 - Szép, modern panel jelenik meg a teendőkkel
@@ -103,6 +106,64 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
    6. Ezután csak a HOZZÁD rendelt teendők jelennek meg (a kiválasztott termékből)!
    7. Ha üresen hagyod → MINDEN teendő megjelenik (a kiválasztott termékből)
    ```
+
+---
+
+## 🔄 Több Contact Ugyanazzal az Email Címmel
+
+### Miért Létezik Ez?
+
+A MiniCRM-ben **ugyanaz az email cím több Contact-ként is szerepelhet**, különböző szerepkörökben:
+
+**Példa: Koch Emil**
+```
+koch.emil@koerber.com
+  ├─ Contact 1 (ID: 26187, Business: 24606) → Körber mint PROJEKT CÉG (PCS projekt)
+  ├─ Contact 2 (ID: 12651, Business: 26xxx) → Körber mint BESZÁLLÍTÓ (ACS projekt)
+  └─ Contact 3 (ID: ???, Business: ???)    → Esetleg más szerepkör
+```
+
+### Hogyan Kezeli a Rendszer?
+
+✅ **Automatikusan egyesít minden projektet!**
+
+1. **Email keresés**: `koch.emil@koerber.com`
+2. **Találat**: 3 Contact ugyanazzal az email címmel
+3. **BusinessIds gyűjtése**: [24606, 26xxx, ???]
+4. **Projekt lekérdezés**: Mindhárom BusinessId-hoz
+5. **Egyesítés**: Minden projekt teendői egy listában
+6. **Szűrés**: CategoryId (ACS/PCS) és UserId szerint
+
+### Railway Log Példa
+
+```
+Found 3 contacts
+Contact #1: Koch Emil (ID: 26187, BusinessId: 24606)
+Contact #2: Koch Emil (ID: 26188, BusinessId: 26450)
+Contact #3: Koch Emil (ID: 26189, BusinessId: 27123)
+Collected 3 unique Business IDs: [24606, 26450, 27123]
+
+Getting todos for 3 Business ID(s): [24606, 26450, 27123]
+
+Getting projects for business 24606: ...&CategoryId=41 (PCS)
+Found 1 projects for business 24606
+  Project: Körber Hungária Kft. PCS (ID: 11114, CategoryId: 41, BusinessId: 24606)
+
+Getting projects for business 26450: ...&CategoryId=41 (PCS)
+Found 0 projects for business 26450
+
+Getting projects for business 27123: ...&CategoryId=23 (ACS)  
+Found 1 projects for business 27123
+  Project: Körber Hungária Kft. ACS (ID: 12651, CategoryId: 23, BusinessId: 27123)
+
+Total projects found across 3 Business ID(s): 2
+```
+
+### Eredmény
+
+✅ Egy email betöltése → **MINDEN projekthez tartozó teendő** megjelenik  
+✅ CategoryId szűréssel → Csak az adott termék (ACS/PCS) projektjei  
+✅ UserId szűréssel → Csak a hozzád rendelt teendők
 
 ---
 
