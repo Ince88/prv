@@ -1308,12 +1308,13 @@ def minicrm_get_todos():
 @app.route('/api/minicrm/daily_todos', methods=['POST'])
 @requires_auth
 def minicrm_daily_todos():
-    """Get all todos for today and overdue - FAST METHOD: Query by date directly"""
+    """Get todos for today and overdue - Smart approach: Query ACTIVE projects only"""
     if not MINICRM_ENABLED:
         return jsonify({'error': 'MiniCRM integration not configured'}), 400
     
     try:
-        from datetime import date, datetime, timedelta
+        from datetime import date, datetime
+        import concurrent.futures
         
         data = request.json or {}
         category_id = data.get('category_id')
@@ -1322,51 +1323,68 @@ def minicrm_daily_todos():
         today = date.today()
         today_str = today.strftime('%Y-%m-%d')
         
-        # Get everything from way back to catch all overdue
-        overdue_start = (today - timedelta(days=365)).strftime('%Y-%m-%d')  # 1 year back
-        
-        print(f"🚀 FAST METHOD: Querying todos by date ({overdue_start} to {today_str})")
+        print(f"🚀 Smart Approach: Query ACTIVE projects only")
         print(f"   Filters: Category={category_id or 'All'}, User={filter_user or 'All'}")
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
-        # Try direct ToDo query (this might work!)
-        # MiniCRM may support: /Api/R3/ToDo with query parameters
-        todo_url = "https://r3.minicrm.hu/Api/R3/ToDo"
+        # ACTIVE STATUS IDs - These represent: Lista, Folyamatban, Döntés, etc.
+        # Configure based on your needs - these are the statuses with actual work
+        ACTIVE_STATUS_IDS = [2692, 2693, 2694, 2696, 2697]  # Adjust as needed
         
-        all_todos = []
-        page = 1
-        max_pages = 10
+        # MAX_PROJECTS_PER_STATUS - Limit to avoid timeout
+        MAX_PROJECTS_PER_STATUS = 50  # 50 projects × 5 statuses = 250 total max
         
-        while page <= max_pages:
-            params = {
-                'Status': 'Open',
-                'Page': page
-            }
-            
-            # Try deadline filtering (parameter names might vary)
-            # Common options: Deadline, DeadlineTo, DeadlineFrom, etc.
-            params['DeadlineTo'] = today_str  # Everything up to today
-            
-            print(f"Attempting direct ToDo query (page {page})...")
+        print(f"   Fetching max {MAX_PROJECTS_PER_STATUS} projects per status: {ACTIVE_STATUS_IDS}")
+        
+        # Step 1: Fetch active projects
+        projects_url = "https://r3.minicrm.hu/Api/R3/Project"
+        all_projects = []
+        
+        for status_id in ACTIVE_STATUS_IDS:
+            params = {'StatusId': status_id}
+            if category_id:
+                params['CategoryId'] = category_id
             
             try:
-                response = requests.get(todo_url, auth=auth, params=params, timeout=15)
-                
-                print(f"Response status: {response.status_code}")
-                
+                response = requests.get(projects_url, auth=auth, params=params, timeout=10)
                 if response.status_code == 200:
-                    data = response.json()
-                    todos = data.get('Results', [])
+                    projects_data = response.json()
+                    projects = projects_data.get('Results', {})
+                    
+                    if isinstance(projects, dict):
+                        projects = list(projects.values())
+                    
+                    # Take first N projects from this status
+                    projects = projects[:MAX_PROJECTS_PER_STATUS]
+                    all_projects.extend(projects)
+                    
+                    print(f"   Status {status_id}: Fetched {len(projects)} projects")
+            except Exception as e:
+                print(f"   Error fetching status {status_id}: {str(e)}")
+        
+        print(f"✅ Total active projects to check: {len(all_projects)}")
+        
+        # Step 2: Fetch todos from all projects (with parallel requests for speed)
+        all_todos = []
+        
+        def fetch_todos_for_project(project):
+            """Fetch todos for a single project"""
+            project_id = project.get('Id')
+            project_name = project.get('Name', 'Unknown')
+            
+            try:
+                todo_url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
+                todo_response = requests.get(todo_url, auth=auth, params={'Status': 'Open'}, timeout=5)
+                
+                if todo_response.status_code == 200:
+                    todo_data = todo_response.json()
+                    todos = todo_data.get('Results', [])
                     
                     if isinstance(todos, dict):
                         todos = list(todos.values())
                     
-                    print(f"Page {page}: Found {len(todos)} todos")
-                    
-                    if not todos:
-                        break
-                    
+                    project_todos = []
                     for todo in todos:
                         deadline_str = todo.get('Deadline', '')
                         if not deadline_str:
@@ -1377,7 +1395,7 @@ def minicrm_daily_todos():
                         except:
                             continue
                         
-                        # Only include today or overdue
+                        # Only today or overdue
                         if deadline_date <= today:
                             todo_user_id = todo.get('UserId', '')
                             
@@ -1387,41 +1405,40 @@ def minicrm_daily_todos():
                             
                             is_overdue = deadline_date < today
                             
-                            # Get project info if available
-                            project_id = todo.get('ProjectId') or todo.get('ContactId')
-                            
-                            all_todos.append({
+                            project_todos.append({
                                 'id': todo.get('Id'),
                                 'title': todo.get('Comment', 'Névtelen teendő'),
                                 'description': todo.get('Comment', ''),
                                 'deadline': deadline_str,
                                 'status': todo.get('Status', 'Open'),
                                 'project_id': project_id,
-                                'project_name': todo.get('ProjectName', 'Unknown'),
+                                'project_name': project_name,
+                                'project_status_id': project.get('StatusId'),
                                 'assigned_to': todo_user_id,
                                 'is_overdue': is_overdue,
                                 'category': 'ACS' if category_id == '23' else 'PCS' if category_id == '41' else 'Unknown'
                             })
                     
-                    if len(todos) < 100:  # Last page
-                        break
-                    
-                    page += 1
-                
-                else:
-                    print(f"⚠️  Direct ToDo query not supported (HTTP {response.status_code})")
-                    print(f"Response: {response.text[:200]}")
-                    raise Exception("Direct date query not supported by API")
+                    return project_todos
+            except:
+                pass
             
-            except Exception as e:
-                print(f"Direct query failed: {str(e)}")
-                raise
+            return []
+        
+        # Parallel fetch with thread pool (faster!)
+        print("📥 Fetching todos in parallel...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            results = executor.map(fetch_todos_for_project, all_projects)
+            
+            for project_todos in results:
+                all_todos.extend(project_todos)
         
         # Sort: overdue first, then by deadline
         all_todos.sort(key=lambda x: (not x['is_overdue'], x['deadline']))
         
         overdue_count = sum(1 for t in all_todos if t['is_overdue'])
-        print(f"✅ RESULTS (Fast Method):")
+        print(f"✅ RESULTS:")
+        print(f"   - Projects checked: {len(all_projects)}")
         print(f"   - Total todos: {len(all_todos)}")
         print(f"   - Overdue: {overdue_count}")
         print(f"   - Today: {len(all_todos) - overdue_count}")
@@ -1431,18 +1448,16 @@ def minicrm_daily_todos():
             'date': today_str,
             'todos': all_todos,
             'total': len(all_todos),
-            'overdue': overdue_count
+            'overdue': overdue_count,
+            'projects_checked': len(all_projects),
+            'note': f'Checked {len(all_projects)} most active projects' if len(all_projects) >= MAX_PROJECTS_PER_STATUS * len(ACTIVE_STATUS_IDS) else None
         })
     
     except Exception as e:
-        print(f"❌ Fast method failed: {str(e)}")
-        print("Falling back to project-based query...")
-        
-        # FALLBACK: If direct date query doesn't work, inform user
-        return jsonify({
-            'error': 'MiniCRM API does not support direct date-based todo queries. Need alternative approach.',
-            'details': str(e)
-        }), 400
+        print(f"❌ Error getting daily todos: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/minicrm/update_todo_text', methods=['POST'])
