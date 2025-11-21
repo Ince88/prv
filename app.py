@@ -1328,20 +1328,23 @@ def minicrm_daily_todos():
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
-        # ACTIVE STATUS IDs - Based on actual CRM discovery
-        # ACS (Category 23): Found 2777, 2778 in use
-        # PCS (Category 41): Found 3101, 3102, 3104 in use
-        # Use the category-specific IDs based on filter
+        # ACTIVE STATUS IDs - Use ALL available statuses from schema
+        # We'll fetch from ALL statuses and let the system find todos
+        # ACS (Category 23): All available status IDs from schema
+        # PCS (Category 41): All available status IDs from schema
         if category_id == '23':  # ACS
-            ACTIVE_STATUS_IDS = [2777, 2778, 2784, 2786, 2787]  # ACS statuses
+            # All ACS status IDs from schema discovery
+            ACTIVE_STATUS_IDS = [2790, 2784, 2777, 2778, 2786, 2787, 2819, 2818, 2817, 2779, 2820, 2846, 2838, 2816, 2788, 2781]
         elif category_id == '41':  # PCS
-            ACTIVE_STATUS_IDS = [3101, 3102, 3104, 3106, 3107]  # PCS statuses
+            # All PCS status IDs from schema discovery
+            ACTIVE_STATUS_IDS = [3108, 3117, 3107, 3101, 3106, 3119, 3102, 3118, 3120, 3110, 3113, 3111, 3104, 3112, 3115, 3116, 3114]
         else:
             # If no category filter, try both
-            ACTIVE_STATUS_IDS = [2777, 2778, 3101, 3102, 3104]
+            ACTIVE_STATUS_IDS = [2777, 2778, 2784, 2786, 2787, 3101, 3102, 3104, 3106, 3107]
         
         # MAX_PROJECTS_PER_STATUS - Limit to avoid timeout
-        MAX_PROJECTS_PER_STATUS = 50  # 50 projects × 5 statuses = 250 total max
+        # Increased to catch more todos, but still keep it fast
+        MAX_PROJECTS_PER_STATUS = 100  # 100 projects per status (with parallel fetching, still fast)
         
         print(f"   Fetching max {MAX_PROJECTS_PER_STATUS} projects per status: {ACTIVE_STATUS_IDS}")
         
@@ -1364,10 +1367,12 @@ def minicrm_daily_todos():
                         projects = list(projects.values())
                     
                     # Take first N projects from this status
+                    count_total = len(projects)
                     projects = projects[:MAX_PROJECTS_PER_STATUS]
                     all_projects.extend(projects)
                     
-                    print(f"   Status {status_id}: Fetched {len(projects)} projects")
+                    if len(projects) > 0:
+                        print(f"   Status {status_id}: Fetched {len(projects)} projects (total: {count_total})")
             except Exception as e:
                 print(f"   Error fetching status {status_id}: {str(e)}")
         
