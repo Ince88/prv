@@ -1325,7 +1325,7 @@ def minicrm_daily_todos():
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
-        # Step 1: Get ALL projects (with optional CategoryId filter)
+        # Step 1: Get ALL projects with pagination (with optional CategoryId filter)
         projects_url = "https://r3.minicrm.hu/Api/R3/Project"
         projects_params = {}
         
@@ -1333,26 +1333,83 @@ def minicrm_daily_todos():
             projects_params['CategoryId'] = category_id
         
         print(f"Getting all projects: {projects_url}")
-        projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
         
-        if projects_response.status_code != 200:
-            return jsonify({'error': f'Failed to get projects: {projects_response.status_code}'}), 500
+        # Fetch ALL projects with pagination
+        all_projects = {}
+        page = 1
+        max_pages = 10  # Safety limit
         
-        projects_data = projects_response.json()
-        projects_results = projects_data.get('Results', {})
+        while page <= max_pages:
+            projects_params['Page'] = page
+            
+            print(f"Fetching page {page}...")
+            projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
+            
+            if projects_response.status_code != 200:
+                return jsonify({'error': f'Failed to get projects: {projects_response.status_code}'}), 500
+            
+            projects_data = projects_response.json()
+            projects_results = projects_data.get('Results', {})
+            total_count = projects_data.get('Count', 0)
+            
+            print(f"Page {page}: Got {len(projects_results)} projects (Total in CRM: {total_count})")
+            
+            if not projects_results:
+                break
+            
+            # Merge results
+            if isinstance(projects_results, dict):
+                all_projects.update(projects_results)
+            else:
+                # If it's a list, convert to dict
+                for proj in projects_results:
+                    all_projects[proj.get('Id')] = proj
+            
+            # Check if we got all
+            if len(all_projects) >= total_count:
+                break
+            
+            page += 1
         
-        print(f"Found {len(projects_results)} projects total")
+        projects_results = all_projects
+        print(f"✅ Total projects fetched: {len(projects_results)}")
         
-        # Step 2: Get todos from all projects
+        # Step 2: Get todos from all projects (excluding irrelevant statuses)
         all_todos = []
+        projects_processed = 0
+        projects_skipped = 0
+        projects_with_todos = 0
+        status_counts = {}  # Track status distribution for debugging
+        
+        # Status IDs to exclude (Lost/Closed deals)
+        # CONFIGURE THESE based on your CRM schema - check logs to see what StatusIds appear
+        EXCLUDED_STATUS_IDS = [2695, 2698, 2699]  # Placeholder - will log actual IDs below
+        # You can also add status names to check
+        EXCLUDED_STATUS_NAMES = ['Vesztett', 'vesztett', 'Törölve', 'törölve', 'Lezárt', 'lezárt', 'Closed']
         
         for project_id_str, project_info in (projects_results.items() if isinstance(projects_results, dict) else enumerate(projects_results)):
             project_id = project_info.get('Id')
             project_name = project_info.get('Name', 'Unknown')
             status_id = project_info.get('StatusId')
+            status_name = project_info.get('Status', '')  # Some responses include status name
+            projects_processed += 1
+            
+            # Track status distribution
+            status_key = f"{status_id}:{status_name}" if status_name else str(status_id)
+            status_counts[status_key] = status_counts.get(status_key, 0) + 1
+            
+            # Skip "Vesztett" and other irrelevant statuses
+            if status_id in EXCLUDED_STATUS_IDS or status_name in EXCLUDED_STATUS_NAMES:
+                projects_skipped += 1
+                if projects_skipped <= 5:  # Log first few
+                    print(f"⏭️  Skipping project '{project_name}' (Status: {status_name or status_id})")
+                continue
+            
+            if projects_processed % 20 == 0:
+                print(f"Progress: {projects_processed}/{len(projects_results)} projects processed ({projects_skipped} skipped)...")
             
             try:
-                # Get todos (Open status only)
+                # Get Open todos only (Active tasks)
                 todo_url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
                 todo_params = {'Status': 'Open'}
                 
@@ -1364,6 +1421,9 @@ def minicrm_daily_todos():
                     
                     if isinstance(todos, dict):
                         todos = list(todos.values())
+                    
+                    if todos:
+                        projects_with_todos += 1
                     
                     for todo in todos:
                         deadline_str = todo.get('Deadline', '')
@@ -1408,7 +1468,18 @@ def minicrm_daily_todos():
         # Sort: overdue first, then by deadline
         all_todos.sort(key=lambda x: (not x['is_overdue'], x['deadline']))
         
-        print(f"Total todos for today+overdue: {len(all_todos)} ({sum(1 for t in all_todos if t['is_overdue'])} overdue)")
+        overdue_count = sum(1 for t in all_todos if t['is_overdue'])
+        print(f"✅ FINAL RESULTS:")
+        print(f"   - Projects total: {projects_processed}")
+        print(f"   - Projects skipped (Vesztett/Closed): {projects_skipped}")
+        print(f"   - Projects checked: {projects_processed - projects_skipped}")
+        print(f"   - Projects with todos: {projects_with_todos}")
+        print(f"   - Total todos for today+overdue: {len(all_todos)}")
+        print(f"   - Overdue: {overdue_count}")
+        print(f"   - Today: {len(all_todos) - overdue_count}")
+        print(f"\n📊 Status Distribution (Top 10):")
+        for status, count in sorted(status_counts.items(), key=lambda x: -x[1])[:10]:
+            print(f"   - {status}: {count} projects")
         
         return jsonify({
             'success': True,
