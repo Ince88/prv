@@ -1305,6 +1305,37 @@ def minicrm_get_todos():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/minicrm/daily_todos', methods=['GET'])
+@requires_auth
+def minicrm_daily_todos():
+    """Get all todos for today across all projects"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        from datetime import date
+        today = date.today().strftime('%Y-%m-%d')
+        
+        print(f"Fetching all todos for today: {today}")
+        
+        # This is a simplified version - in production you'd want to:
+        # 1. Get user's CategoryId filter from request
+        # 2. Get user's UserId filter from request  
+        # 3. Query specific projects or all accessible projects
+        
+        # For now, return empty - will be implemented with proper project discovery
+        return jsonify({
+            'success': True,
+            'date': today,
+            'todos': [],
+            'message': 'Daily todos feature coming soon - needs project discovery implementation'
+        })
+    
+    except Exception as e:
+        print(f"Error getting daily todos: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/minicrm/update_todo_deadline', methods=['POST'])
 @requires_auth
 def minicrm_update_todo_deadline():

@@ -4047,3 +4047,293 @@ function formatDate(dateString) {
     
     return `${year}-${month}-${day}`;
 }
+
+// ============================================
+// DAILY TODOS VIEW
+// ============================================
+
+// Initialize Daily Todos button
+document.addEventListener('DOMContentLoaded', function() {
+    const dailyTodosBtn = document.getElementById('open-daily-todos-btn');
+    if (dailyTodosBtn) {
+        dailyTodosBtn.addEventListener('click', openDailyTodosView);
+    }
+});
+
+async function openDailyTodosView() {
+    showToast('📋 Loading today\'s todos...', 'info');
+    
+    // For now, use a mock/placeholder view
+    // TODO: Implement proper backend integration
+    displayDailyTodosModal([
+        {
+            id: 1,
+            title: 'Meghívó küldés',
+            company: 'Körber Hungária Kft.',
+            contact: 'Koch Emil',
+            email: 'emil.koch@koerber.com',
+            phone: '+36 20 661 2783',
+            project_name: 'Körber Hungária Kft.',
+            deadline: '2025-11-21 23:59:00',
+            status: 'Open',
+            category: 'ACS'
+        },
+        {
+            id: 2,
+            title: 'Követés - ajánlat',
+            company: 'HR-RENT KFT',
+            contact: 'Koch Emil',
+            email: 'emil.koch@koerber.com',
+            phone: '',
+            project_name: 'HR-RENT KFT',
+            deadline: '2025-11-21 14:30:00',
+            status: 'Open',
+            category: 'ACS'
+        }
+    ]);
+}
+
+function displayDailyTodosModal(todos) {
+    // Remove existing modal if any
+    const existingModal = document.getElementById('daily-todos-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    const today = new Date().toLocaleDateString('hu-HU', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        weekday: 'long'
+    });
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.id = 'daily-todos-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        backdrop-filter: blur(8px);
+        padding: 20px;
+        overflow-y: auto;
+    `;
+    
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 24px;
+        padding: 0;
+        max-width: 1200px;
+        width: 95%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+    `;
+    
+    modalContent.innerHTML = `
+        <!-- Header -->
+        <div style="
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            padding: 32px;
+            border-radius: 24px 24px 0 0;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+        ">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                    <h1 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 800; color: white;">
+                        📋 Today's Todos
+                    </h1>
+                    <div style="font-size: 16px; color: rgba(255, 255, 255, 0.9); font-weight: 500;">
+                        ${today}
+                    </div>
+                    <div style="margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap;">
+                        <div style="background: rgba(255, 255, 255, 0.2); padding: 8px 16px; border-radius: 12px;">
+                            <span style="font-size: 24px; font-weight: 700;">${todos.length}</span>
+                            <span style="font-size: 14px; opacity: 0.9; margin-left: 6px;">tasks</span>
+                        </div>
+                        <div style="background: rgba(255, 255, 255, 0.2); padding: 8px 16px; border-radius: 12px;">
+                            <span style="font-size: 14px; opacity: 0.9;">
+                                📦 ${promptSettings.miniCrmCategoryId === '23' ? 'ACS' : promptSettings.miniCrmCategoryId === '41' ? 'PCS' : 'All'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="closeDailyTodosModal()" style="
+                    background: rgba(255, 255, 255, 0.2);
+                    border: none;
+                    color: white;
+                    font-size: 28px;
+                    cursor: pointer;
+                    border-radius: 12px;
+                    width: 44px;
+                    height: 44px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.2s;
+                " onmouseover="this.style.background='rgba(255, 255, 255, 0.3)'"
+                   onmouseout="this.style.background='rgba(255, 255, 255, 0.2)'">×</button>
+            </div>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 32px;">
+            ${todos.length === 0 ? `
+                <div style="text-align: center; padding: 60px 20px; color: white;">
+                    <div style="font-size: 64px; margin-bottom: 16px;">🎉</div>
+                    <div style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">All clear!</div>
+                    <div style="font-size: 16px; opacity: 0.8;">No todos for today. Great job!</div>
+                </div>
+            ` : `
+                <div style="display: grid; gap: 20px;">
+                    ${todos.map(todo => `
+                        <div style="
+                            background: rgba(255, 255, 255, 0.95);
+                            border-radius: 16px;
+                            padding: 24px;
+                            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                            transition: all 0.3s;
+                        " onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 30px rgba(0, 0, 0, 0.15)'"
+                           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 20px rgba(0, 0, 0, 0.1)'">
+                            <!-- Header Row -->
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                                <div style="flex: 1;">
+                                    <h3 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #2c3e50;">
+                                        ${todo.title}
+                                    </h3>
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                        <span style="background: #667eea; color: white; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+                                            🏢 ${todo.project_name}
+                                        </span>
+                                        <span style="background: #764ba2; color: white; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">
+                                            📦 ${todo.category}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 14px; color: #e74c3c; font-weight: 600; margin-bottom: 4px;">
+                                        ⏰ ${todo.deadline.split(' ')[1].slice(0, 5)}
+                                    </div>
+                                    <div style="font-size: 12px; color: #7f8c8d;">
+                                        ${formatDate(todo.deadline)}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Contact Info -->
+                            <div style="background: #f8f9fa; padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                                    <div>
+                                        <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 4px;">Contact</div>
+                                        <div style="font-size: 15px; font-weight: 600; color: #2c3e50;">${todo.contact}</div>
+                                    </div>
+                                    ${todo.email ? `
+                                        <div>
+                                            <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 4px;">Email</div>
+                                            <a href="mailto:${todo.email}" style="font-size: 14px; color: #3498db; text-decoration: none;">${todo.email}</a>
+                                        </div>
+                                    ` : ''}
+                                    ${todo.phone ? `
+                                        <div>
+                                            <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 4px;">Phone</div>
+                                            <a href="tel:${todo.phone}" style="font-size: 14px; color: #3498db; text-decoration: none;">${todo.phone}</a>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            
+                            <!-- Actions -->
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="date" id="daily-todo-date-${todo.id}" value="${todo.deadline.split(' ')[0]}" style="
+                                    padding: 10px;
+                                    border: 2px solid #e0e0e0;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                ">
+                                <input type="time" id="daily-todo-time-${todo.id}" value="${todo.deadline.split(' ')[1].slice(0, 5)}" style="
+                                    padding: 10px;
+                                    border: 2px solid #e0e0e0;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                ">
+                                <button onclick="updateTodoFromDaily(${todo.id})" style="
+                                    padding: 10px 20px;
+                                    background: #27ae60;
+                                    color: white;
+                                    border: none;
+                                    border-radius: 8px;
+                                    cursor: pointer;
+                                    font-weight: 600;
+                                    font-size: 14px;
+                                    white-space: nowrap;
+                                    transition: all 0.2s;
+                                " onmouseover="this.style.background='#229954'"
+                                   onmouseout="this.style.background='#27ae60'">
+                                    💾 Update
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `}
+        </div>
+    `;
+    
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+}
+
+function closeDailyTodosModal() {
+    const modal = document.getElementById('daily-todos-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function updateTodoFromDaily(todoId) {
+    const dateInput = document.getElementById(`daily-todo-date-${todoId}`);
+    const timeInput = document.getElementById(`daily-todo-time-${todoId}`);
+    
+    const dateValue = dateInput.value;
+    const timeValue = timeInput.value;
+    
+    if (!dateValue) {
+        showToast('❌ Please select a date!', 'error');
+        return;
+    }
+    
+    const time = timeValue || '23:59';
+    const formattedDeadline = `${dateValue} ${time}:00`;
+    
+    try {
+        const response = await fetch('/api/minicrm/update_todo_deadline', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                todo_id: todoId,
+                deadline: formattedDeadline
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('✅ ' + data.message, 'success');
+            // Reload the daily todos view
+            setTimeout(() => openDailyTodosView(), 1000);
+        } else {
+            showToast('❌ ' + (data.error || 'Error occurred'), 'error');
+        }
+    } catch (error) {
+        showToast('❌ Error: ' + error.message, 'error');
+    }
+}

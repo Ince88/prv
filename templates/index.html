@@ -113,11 +113,29 @@
         <!-- Main Content -->
         <div class="main-content">
             <!-- Header -->
-            <div class="chat-header">
+            <div class="chat-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="header-info">
                     <h1 class="header-title">AI Marketing Assistant</h1>
                     <p class="header-subtitle">Your intelligent B2B marketing companion</p>
                 </div>
+                <button id="open-daily-todos-btn" style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    font-size: 15px;
+                    cursor: pointer;
+                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                    transition: all 0.3s;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.6)'"
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.4)'">
+                    📋 Today's Todos
+                </button>
             </div>
             
             <!-- Messages Area -->
