@@ -3814,7 +3814,7 @@ function displayMiniCRMTodosPanel(todos, contact) {
                     </div>
                     
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="date" id="new-deadline-${todo.id}" value="${todo.deadline ? todo.deadline.split('T')[0] : ''}" style="
+                        <input type="datetime-local" id="new-deadline-${todo.id}" value="${todo.deadline ? todo.deadline.replace(' ', 'T').slice(0, 16) : ''}" style="
                             flex: 1;
                             padding: 10px;
                             border: none;
@@ -3866,13 +3866,16 @@ async function updateTodoDeadline(todoId) {
         return;
     }
     
+    // Convert datetime-local format (2025-09-18T23:59) to MiniCRM format (2025-09-18 23:59:00)
+    const formattedDeadline = newDeadline.replace('T', ' ') + ':00';
+    
     try {
         const response = await fetch('/api/minicrm/update_todo_deadline', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 todo_id: todoId,
-                deadline: newDeadline + 'T12:00:00'  // Add time component
+                deadline: formattedDeadline
             })
         });
         
