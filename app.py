@@ -1124,13 +1124,25 @@ def minicrm_get_todos():
                     
                     print(f"Found {projects_count} projects for business {business_id}")
                     
-                    # Merge projects from this business into all_projects_results
+                    # Handle both dict and list response formats
                     if isinstance(projects_results, dict):
+                        # Dict format: {"12651": {...}, "12690": {...}}
                         all_projects_results.update(projects_results)
+                        
+                        # Debug: Log each project
+                        for project_id_str, project_info in projects_results.items():
+                            print(f"  Project: {project_info.get('Name')} (ID: {project_info.get('Id')}, CategoryId: {project_info.get('CategoryId', 'N/A')}, BusinessId: {business_id})")
                     
-                    # Debug: Log each project
-                    for project_id_str, project_info in projects_results.items():
-                        print(f"  Project: {project_info.get('Name')} (ID: {project_info.get('Id')}, CategoryId: {project_info.get('CategoryId', 'N/A')}, BusinessId: {business_id})")
+                    elif isinstance(projects_results, list):
+                        # List format: [{...}, {...}]
+                        print(f"  Projects returned as list (count: {len(projects_results)})")
+                        for project_info in projects_results:
+                            project_id = project_info.get('Id')
+                            if project_id:
+                                all_projects_results[str(project_id)] = project_info
+                                print(f"  Project: {project_info.get('Name')} (ID: {project_id}, CategoryId: {project_info.get('CategoryId', 'N/A')}, BusinessId: {business_id})")
+                    else:
+                        print(f"  Warning: Unexpected projects_results type: {type(projects_results)}")
                 else:
                     print(f"Failed to get projects for business {business_id}: {projects_response.status_code}")
             except Exception as e:
