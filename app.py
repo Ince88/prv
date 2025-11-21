@@ -1123,15 +1123,43 @@ def minicrm_get_todos():
                     projects_count = projects_data.get('Count', 0)
                     
                     print(f"Found {projects_count} projects for business {business_id}")
+                    print(f"FULL Projects response for Business {business_id}: {projects_response.text}")
                     
                     # Handle both dict and list response formats
                     if isinstance(projects_results, dict):
                         # Dict format: {"12651": {...}, "12690": {...}}
-                        all_projects_results.update(projects_results)
+                        # WARNING: Search results may not include CategoryId!
+                        # Need to fetch full project details if CategoryId missing
                         
-                        # Debug: Log each project
                         for project_id_str, project_info in projects_results.items():
-                            print(f"  Project: {project_info.get('Name')} (ID: {project_info.get('Id')}, CategoryId: {project_info.get('CategoryId', 'N/A')}, BusinessId: {business_id})")
+                            project_id = project_info.get('Id')
+                            project_category = project_info.get('CategoryId')
+                            
+                            print(f"  Project search result: {project_info.get('Name')} (ID: {project_id}, CategoryId: {project_category or 'NOT IN SEARCH RESULT'})")
+                            
+                            # If CategoryId not in search result and we have a filter, fetch full details
+                            if not project_category and category_id:
+                                project_url = project_info.get('Url')
+                                if project_url:
+                                    try:
+                                        print(f"    Fetching full project details from: {project_url}")
+                                        full_project_response = requests.get(project_url, auth=auth, timeout=10)
+                                        if full_project_response.status_code == 200:
+                                            full_project_info = full_project_response.json()
+                                            project_category = full_project_info.get('CategoryId')
+                                            print(f"    Full project CategoryId: {project_category}")
+                                            
+                                            # Update project_info with full data
+                                            project_info = full_project_info
+                                    except Exception as e:
+                                        print(f"    Error fetching full project: {str(e)}")
+                            
+                            # Only add if CategoryId matches filter (or no filter)
+                            if not category_id or str(project_category) == str(category_id):
+                                all_projects_results[project_id_str] = project_info
+                                print(f"    ✅ Added to results (CategoryId match or no filter)")
+                            else:
+                                print(f"    ❌ Skipped (CategoryId {project_category} != filter {category_id})")
                     
                     elif isinstance(projects_results, list):
                         # List format: [{...}, {...}]
