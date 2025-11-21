@@ -1017,15 +1017,29 @@ def minicrm_find_contact():
                 # Get first contact from Results dictionary
                 contact_id = list(results.keys())[0]
                 contact = results[contact_id]
-                print(f"Returning contact: {contact.get('Name')} (ID: {contact_id})")
-                print(f"Contact full data: {contact}")
+                print(f"Found contact: {contact.get('Name')} (ID: {contact_id})")
+                print(f"Contact search data: {contact}")
                 
-                # Get company/business ID for todos
-                # Todos are assigned to companies, not contacts!
-                business_id = contact.get('BusinessId') or contact.get('Business')
+                # Get FULL contact details (search may return partial data)
+                # The Url field contains the full contact endpoint
+                contact_url = contact.get('Url')
+                if contact_url:
+                    print(f"Fetching full contact details from: {contact_url}")
+                    full_response = requests.get(contact_url, auth=auth, timeout=10)
+                    if full_response.status_code == 200:
+                        contact = full_response.json()
+                        print(f"Full contact data: {contact}")
+                    else:
+                        print(f"Warning: Could not fetch full contact (status {full_response.status_code})")
+                
+                # Get project ID for todos
+                # Todos are assigned to PROJECTS, not contacts or businesses!
+                project_id = contact.get('ProjectId')
+                projects = contact.get('Projects')
+                business_id = contact.get('BusinessId')
                 company_name = contact.get('Company')
                 
-                print(f"BusinessId: {business_id}, Company: {company_name}")
+                print(f"ProjectId: {project_id}, Projects: {projects}, BusinessId: {business_id}, Company: {company_name}")
                 
                 return jsonify({
                     'found': True,
@@ -1035,7 +1049,9 @@ def minicrm_find_contact():
                         'email': contact.get('Email'),
                         'company': company_name,
                         'phone': contact.get('Phone'),
-                        'business_id': business_id  # ← ADD THIS for todos!
+                        'business_id': business_id,
+                        'project_id': project_id,  # ← For project-based todos
+                        'projects': projects  # ← May contain list of projects
                     }
                 })
             else:
@@ -1067,19 +1083,24 @@ def minicrm_get_todos():
     
     try:
         data = request.json
+        project_id = data.get('project_id')
         business_id = data.get('business_id')
         contact_name = data.get('contact_name', 'Unknown')
         
-        print(f"Getting todos for business ID: {business_id} (Contact: {contact_name})")
+        # Todos are assigned to PROJECTS, not contacts or businesses!
+        # Try project_id first, fallback to business_id
+        todo_list_id = project_id or business_id
         
-        if not business_id:
-            return jsonify({'error': 'Business ID required. Todos are assigned to companies, not contacts!'}), 400
+        print(f"Getting todos for entity ID: {todo_list_id} (Project: {project_id}, Business: {business_id}, Contact: {contact_name})")
+        
+        if not todo_list_id:
+            return jsonify({'error': 'Project ID or Business ID required for todos'}), 400
         
         # MiniCRM API call to get todos
-        # Correct endpoint: /Api/R3/ToDoList/{business_id}
-        # Note: Todos are assigned to COMPANIES (Business), not individual contacts!
+        # Correct endpoint: /Api/R3/ToDoList/{id}
+        # Note: Todos are typically assigned to PROJECTS
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
-        url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{business_id}"
+        url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{todo_list_id}"
         
         print(f"Making TODO request to: {url}")
         
