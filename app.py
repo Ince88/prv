@@ -1518,12 +1518,28 @@ def minicrm_discover_status_ids():
             url = f"https://r3.minicrm.hu/Api/R3/Schema/Project/{category_id}"
             response = requests.get(url, auth=auth, timeout=10)
             
+            category_name = 'ACS' if category_id == '23' else 'PCS'
+            
+            print(f"\n🔍 Fetching schema for {category_name} (Category {category_id})")
+            print(f"URL: {url}")
+            print(f"Response status: {response.status_code}")
+            
             if response.status_code == 200:
                 schema_data = response.json()
-                status_field = schema_data.get('StatusId', {})
-                statuses = status_field.get('Values', {})
                 
-                category_name = 'ACS' if category_id == '23' else 'PCS'
+                # DEBUG: Print full schema structure
+                print(f"📦 Full schema keys: {list(schema_data.keys())}")
+                
+                status_field = schema_data.get('StatusId', {})
+                print(f"📦 StatusId field type: {type(status_field)}")
+                print(f"📦 StatusId field keys: {list(status_field.keys()) if isinstance(status_field, dict) else 'N/A'}")
+                
+                statuses = status_field.get('Values', {})
+                print(f"📦 Statuses found: {len(statuses)}")
+                
+                if statuses:
+                    print(f"📦 Sample status: {list(statuses.items())[0] if statuses else 'None'}")
+                
                 results[category_name] = []
                 
                 for status_id, status_info in statuses.items():
@@ -1549,6 +1565,48 @@ def minicrm_discover_status_ids():
                 
                 print(f"\n🎯 Recommended ACTIVE_STATUS_IDS for {category_name}: {active_ids}")
                 print(f"{'='*60}\n")
+            else:
+                print(f"❌ Failed to fetch schema: HTTP {response.status_code}")
+                print(f"Response: {response.text[:500]}")
+        
+        # FALLBACK: If schema doesn't work, sample actual projects to find status IDs
+        if not any(results.values()):
+            print("\n⚠️  Schema API didn't return statuses. Trying fallback: sampling projects...")
+            
+            for category_id in ['23', '41']:
+                category_name = 'ACS' if category_id == '23' else 'PCS'
+                
+                # Fetch first 100 projects for this category
+                projects_url = "https://r3.minicrm.hu/Api/R3/Project"
+                projects_response = requests.get(projects_url, auth=auth, params={'CategoryId': category_id}, timeout=10)
+                
+                if projects_response.status_code == 200:
+                    projects_data = projects_response.json()
+                    projects = projects_data.get('Results', {})
+                    
+                    if isinstance(projects, dict):
+                        projects = list(projects.values())
+                    
+                    print(f"\n{category_name}: Sampled {len(projects)} projects")
+                    
+                    # Collect unique status IDs
+                    status_ids_found = {}
+                    for project in projects[:100]:  # Sample first 100
+                        status_id = project.get('StatusId')
+                        status_name = project.get('Status', 'Unknown')
+                        
+                        if status_id:
+                            if status_id not in status_ids_found:
+                                status_ids_found[status_id] = status_name
+                    
+                    print(f"Found {len(status_ids_found)} unique status IDs:")
+                    for sid, sname in sorted(status_ids_found.items()):
+                        print(f"  - {sid}: {sname}")
+                    
+                    results[category_name] = [
+                        {'id': sid, 'name': sname, 'is_active': True}  # Assume all sampled are active
+                        for sid, sname in status_ids_found.items()
+                    ]
         
         return jsonify({
             'success': True,
