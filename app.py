@@ -1018,6 +1018,14 @@ def minicrm_find_contact():
                 contact_id = list(results.keys())[0]
                 contact = results[contact_id]
                 print(f"Returning contact: {contact.get('Name')} (ID: {contact_id})")
+                print(f"Contact full data: {contact}")
+                
+                # Get company/business ID for todos
+                # Todos are assigned to companies, not contacts!
+                business_id = contact.get('BusinessId') or contact.get('Business')
+                company_name = contact.get('Company')
+                
+                print(f"BusinessId: {business_id}, Company: {company_name}")
                 
                 return jsonify({
                     'found': True,
@@ -1025,8 +1033,9 @@ def minicrm_find_contact():
                         'id': contact.get('Id'),
                         'name': contact.get('Name'),
                         'email': contact.get('Email'),
-                        'company': contact.get('Company'),
-                        'phone': contact.get('Phone')
+                        'company': company_name,
+                        'phone': contact.get('Phone'),
+                        'business_id': business_id  # ← ADD THIS for todos!
                     }
                 })
             else:
@@ -1058,16 +1067,19 @@ def minicrm_get_todos():
     
     try:
         data = request.json
-        contact_id = data.get('contact_id')
-        print(f"Getting todos for contact ID: {contact_id}")
+        business_id = data.get('business_id')
+        contact_name = data.get('contact_name', 'Unknown')
         
-        if not contact_id:
-            return jsonify({'error': 'Contact ID required'}), 400
+        print(f"Getting todos for business ID: {business_id} (Contact: {contact_name})")
+        
+        if not business_id:
+            return jsonify({'error': 'Business ID required. Todos are assigned to companies, not contacts!'}), 400
         
         # MiniCRM API call to get todos
-        # Correct endpoint: /Api/R3/ToDoList/{contact_id}
+        # Correct endpoint: /Api/R3/ToDoList/{business_id}
+        # Note: Todos are assigned to COMPANIES (Business), not individual contacts!
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
-        url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{contact_id}"
+        url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{business_id}"
         
         print(f"Making TODO request to: {url}")
         

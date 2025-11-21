@@ -3715,17 +3715,28 @@ async function loadMiniCRMTodos(email) {
         
         currentMiniCRMContact = contactData.contact;
         
-        // Get todos for this contact
+        // Get todos for this contact's company
+        // Note: Todos are assigned to companies, not individual contacts!
+        if (!contactData.contact.business_id) {
+            console.log('No business_id found for contact - todos are company-based');
+            return;
+        }
+        
         const todosResponse = await fetch('/api/minicrm/get_todos', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ contact_id: contactData.contact.id })
+            body: JSON.stringify({ 
+                business_id: contactData.contact.business_id,
+                contact_name: contactData.contact.name
+            })
         });
         
         const todosData = await todosResponse.json();
         
         if (todosData.success && todosData.todos.length > 0) {
             displayMiniCRMTodosPanel(todosData.todos, contactData.contact);
+        } else {
+            console.log('No todos found for this company');
         }
     } catch (error) {
         console.error('Error loading MiniCRM todos:', error);
