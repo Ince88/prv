@@ -1328,9 +1328,17 @@ def minicrm_daily_todos():
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
-        # ACTIVE STATUS IDs - These represent: Lista, Folyamatban, Döntés, etc.
-        # Configure based on your needs - these are the statuses with actual work
-        ACTIVE_STATUS_IDS = [2692, 2693, 2694, 2696, 2697]  # Adjust as needed
+        # ACTIVE STATUS IDs - Based on actual CRM discovery
+        # ACS (Category 23): Found 2777, 2778 in use
+        # PCS (Category 41): Found 3101, 3102, 3104 in use
+        # Use the category-specific IDs based on filter
+        if category_id == '23':  # ACS
+            ACTIVE_STATUS_IDS = [2777, 2778, 2784, 2786, 2787]  # ACS statuses
+        elif category_id == '41':  # PCS
+            ACTIVE_STATUS_IDS = [3101, 3102, 3104, 3106, 3107]  # PCS statuses
+        else:
+            # If no category filter, try both
+            ACTIVE_STATUS_IDS = [2777, 2778, 3101, 3102, 3104]
         
         # MAX_PROJECTS_PER_STATUS - Limit to avoid timeout
         MAX_PROJECTS_PER_STATUS = 50  # 50 projects × 5 statuses = 250 total max
@@ -1532,23 +1540,38 @@ def minicrm_discover_status_ids():
                 
                 status_field = schema_data.get('StatusId', {})
                 print(f"📦 StatusId field type: {type(status_field)}")
-                print(f"📦 StatusId field keys: {list(status_field.keys()) if isinstance(status_field, dict) else 'N/A'}")
                 
-                statuses = status_field.get('Values', {})
-                print(f"📦 Statuses found: {len(statuses)}")
-                
-                if statuses:
-                    print(f"📦 Sample status: {list(statuses.items())[0] if statuses else 'None'}")
+                # The StatusId field IS the statuses dict (keys are status IDs)
+                # Each key is a status ID, and the value contains the status details
+                if isinstance(status_field, dict):
+                    status_ids = list(status_field.keys())
+                    print(f"📦 Status IDs found: {len(status_ids)}")
+                    print(f"📦 Status IDs: {status_ids}")
+                    
+                    # Sample one to see structure
+                    if status_ids:
+                        sample_id = status_ids[0]
+                        sample_data = status_field[sample_id]
+                        print(f"📦 Sample status {sample_id} structure: {sample_data}")
                 
                 results[category_name] = []
                 
-                for status_id, status_info in statuses.items():
-                    status_name = status_info.get('Name', '')
-                    is_active = status_name.lower() not in ['vesztett', 'nyert', 'lezárt', 'törölve']
+                # StatusId field keys ARE the status IDs
+                for status_id, status_info in status_field.items():
+                    # status_info might be a dict with Name, or might be structured differently
+                    if isinstance(status_info, dict):
+                        status_name = status_info.get('Name', status_info.get('name', status_id))
+                        color = status_info.get('Color', status_info.get('color', ''))
+                    else:
+                        status_name = str(status_info)
+                        color = ''
+                    
+                    is_active = status_name.lower() not in ['vesztett', 'nyert', 'lezárt', 'törölve', 'closed', 'won', 'lost']
                     
                     results[category_name].append({
                         'id': int(status_id),
                         'name': status_name,
+                        'color': color,
                         'is_active': is_active
                     })
                 
