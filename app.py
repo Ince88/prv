@@ -1510,12 +1510,17 @@ def minicrm_daily_todos():
                         print(f"  → Found {len(todos_list) if isinstance(todos_list, list) else 'N/A'} todos")
                     
                     # Process each todo
+                    todos_found_in_project = 0
+                    todos_filtered_by_user = 0
+                    todos_filtered_by_date = 0
+                    
                     for todo in todos_list:
                         todo_deadline = todo.get('Deadline', '')
                         todo_user_id = todo.get('UserId')
                         
                         # Filter by user if specified
                         if filter_user_id and str(todo_user_id) != str(filter_user_id):
+                            todos_filtered_by_user += 1
                             continue
                         
                         # Filter by deadline (overdue or today only)
@@ -1529,9 +1534,15 @@ def minicrm_daily_todos():
                                     todo['project_name'] = project_name
                                     todo['project_id'] = project_id
                                     all_todos.append(todo)
+                                    todos_found_in_project += 1
+                                else:
+                                    todos_filtered_by_date += 1
                             except ValueError:
                                 # Skip if date parsing fails
                                 continue
+                    
+                    if project_count <= 10 and (todos_filtered_by_user > 0 or todos_filtered_by_date > 0):
+                        print(f"  → Kept {todos_found_in_project}, filtered: {todos_filtered_by_user} by user, {todos_filtered_by_date} by date")
             
             except requests.exceptions.Timeout:
                 print(f"Timeout fetching todos for project {project_id}")
