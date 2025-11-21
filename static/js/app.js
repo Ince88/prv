@@ -4332,3 +4332,27 @@ async function updateTodoFromDaily(todoId) {
         showToast('❌ Error: ' + error.message, 'error');
     }
 }
+
+// ============================================================================
+// HELPER FUNCTION: Discover MiniCRM Status IDs (for debugging/setup)
+// ============================================================================
+async function discoverMiniCRMStatusIds() {
+    try {
+        const response = await fetch('/api/minicrm/discover_status_ids');
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('✅ MiniCRM Status Discovery:', data);
+            alert('✅ Status IDs discovered!\n\nCheck:\n1. Browser console (F12) for JSON\n2. Railway logs for formatted list\n\nUse the displayed IDs to update ACTIVE_STATUS_IDS in app.py');
+        } else {
+            console.error('❌ Discovery failed:', data);
+            alert('❌ Failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('❌ Error:', error);
+        alert('❌ Error: ' + error.message);
+    }
+}
+
+// Make it available globally for console testing
+window.discoverMiniCRMStatusIds = discoverMiniCRMStatusIds;

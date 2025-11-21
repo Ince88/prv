@@ -1501,6 +1501,65 @@ def minicrm_update_todo_text():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/minicrm/discover_status_ids', methods=['GET'])
+@requires_auth
+def minicrm_discover_status_ids():
+    """Discover actual status IDs for your CRM - HELPER ENDPOINT"""
+    if not MINICRM_ENABLED:
+        return jsonify({'error': 'MiniCRM integration not configured'}), 400
+    
+    try:
+        auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
+        
+        # Check both ACS and PCS
+        results = {}
+        
+        for category_id in ['23', '41']:  # ACS and PCS
+            url = f"https://r3.minicrm.hu/Api/R3/Schema/Project/{category_id}"
+            response = requests.get(url, auth=auth, timeout=10)
+            
+            if response.status_code == 200:
+                schema_data = response.json()
+                status_field = schema_data.get('StatusId', {})
+                statuses = status_field.get('Values', {})
+                
+                category_name = 'ACS' if category_id == '23' else 'PCS'
+                results[category_name] = []
+                
+                for status_id, status_info in statuses.items():
+                    status_name = status_info.get('Name', '')
+                    is_active = status_name.lower() not in ['vesztett', 'nyert', 'lezárt', 'törölve']
+                    
+                    results[category_name].append({
+                        'id': int(status_id),
+                        'name': status_name,
+                        'is_active': is_active
+                    })
+                
+                print(f"\n{'='*60}")
+                print(f"{category_name} (Category {category_id}) Status IDs:")
+                print(f"{'='*60}")
+                
+                active_ids = []
+                for status in results[category_name]:
+                    symbol = '✅' if status['is_active'] else '❌'
+                    print(f"{symbol} {status['id']}: {status['name']}")
+                    if status['is_active']:
+                        active_ids.append(status['id'])
+                
+                print(f"\n🎯 Recommended ACTIVE_STATUS_IDS for {category_name}: {active_ids}")
+                print(f"{'='*60}\n")
+        
+        return jsonify({
+            'success': True,
+            'statuses': results,
+            'instructions': 'Check Railway logs to see the status IDs. Update ACTIVE_STATUS_IDS in app.py'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/minicrm/get_project_statuses', methods=['POST'])
 @requires_auth
 def minicrm_get_project_statuses():
