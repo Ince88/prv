@@ -1085,8 +1085,9 @@ def minicrm_get_todos():
         data = request.json
         business_id = data.get('business_id')
         contact_name = data.get('contact_name', 'Unknown')
+        filter_user = data.get('filter_user')  # Optional: filter by assigned user
         
-        print(f"Getting todos for business ID: {business_id} (Contact: {contact_name})")
+        print(f"Getting todos for business ID: {business_id} (Contact: {contact_name}, Filter User: {filter_user or 'All'})")
         
         if not business_id:
             return jsonify({'error': 'Business ID required to find projects and todos'}), 400
@@ -1158,6 +1159,24 @@ def minicrm_get_todos():
                     
                     # Format todos for frontend
                     for todo in todo_items:
+                        # Filter by user if specified
+                        todo_user_id = todo.get('UserId', '')
+                        
+                        # If filter_user is set, only include todos assigned to that user
+                        if filter_user and todo_user_id:
+                            # UserId can be either a name (string) or numeric ID
+                            # Match both exact string and case-insensitive comparison
+                            if isinstance(todo_user_id, str):
+                                if todo_user_id.strip().lower() != filter_user.strip().lower():
+                                    continue  # Skip this todo
+                            else:
+                                # If numeric ID, convert filter_user to int and compare
+                                try:
+                                    if int(todo_user_id) != int(filter_user):
+                                        continue
+                                except (ValueError, TypeError):
+                                    continue  # Skip if conversion fails
+                        
                         formatted_todo = {
                             'id': todo.get('Id'),
                             'title': todo.get('Comment') or todo.get('Title') or todo.get('Name', 'Névtelen teendő'),
@@ -1166,7 +1185,8 @@ def minicrm_get_todos():
                             'status': todo.get('Status', 'Active'),
                             'completed': todo.get('Status') == 'Closed',
                             'project_name': project_name,
-                            'project_id': project_id
+                            'project_id': project_id,
+                            'assigned_to': todo_user_id  # Include assigned user for debugging
                         }
                         all_todos.append(formatted_todo)
                     
