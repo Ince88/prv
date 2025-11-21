@@ -25,11 +25,20 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
 - Új határidő kiválasztása (dátum ÉS idő)
 - "Mentés" gombbal frissíted a MiniCRM-ben
 
-### 4. **Felelős Szerinti Szűrés** 🆕
+### 4. **Termék (CategoryId) Szerinti Szűrés** 🆕
+- Beállíthatod hogy csak egy **adott termék** (ACS/PCS) teendői jelenjenek meg
+- Settings → Prompt Settings → "📦 MiniCRM Termék (CategoryId)"
+- Opciók:
+  - **ACS (CategoryId: 23)** - Csak ACS projektek
+  - **PCS (CategoryId: 41)** - Csak PCS projektek
+  - **Összes termék** - Minden termék projektjei
+- **Fontos**: Ha egy cég több termékben is szerepel, ez határozza meg hogy melyik projekteket kérdezzük le!
+
+### 5. **Felelős Szerinti Szűrés** 🆕
 - Beállíthatod hogy csak a **hozzád rendelt** teendők jelenjenek meg
 - Settings → Prompt Settings → "🔗 MiniCRM Felhasználó ID"
 - ⚠️ **NUMERIKUS User ID** szükséges (pl: 120420), NEM a neved!
-- Ha üresen hagyod, az **összes** teendő megjelenik
+- Ha üresen hagyod, az **összes** teendő megjelenik (az adott termékből)
 - User ID megtalálása: Railway log → "Unique UserIds in project"
 
 ---
@@ -60,7 +69,22 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
    4. Toast üzenet jelenik meg a sikerről
    ```
 
-4. **Teendők Szűrése Felelős Szerint** 🆕
+4. **Termék Választás (ACS/PCS)** 🆕
+   ```
+   📦 Válaszd ki melyik termék projektjeit akarod látni!
+   
+   Beállítás:
+   1. Kattints a "⚙️ Settings" gombra
+   2. Válaszd a "💬 Prompt Settings" opciót
+   3. Keresd meg: "📦 MiniCRM Termék (CategoryId)"
+   4. Válassz:
+      - ACS (CategoryId: 23) - Ha ACS-ben dolgozol
+      - PCS (CategoryId: 41) - Ha PCS-ben dolgozol
+      - Összes termék - Minden termék projektjei
+   5. Kattints "💾 Save Settings"
+   ```
+
+5. **Teendők Szűrése Felelős Szerint** 🆕
    ```
    ⚠️ FONTOS: A MiniCRM NUMERIKUS User ID-t kell megadni, NEM a nevedet!
    
@@ -76,8 +100,8 @@ A PRV AI Assistant most integr álva van a MiniCRM rendszerrel, lehetővé téve
    3. Görgess le a "🔗 MiniCRM Felhasználó ID" mezőhöz
    4. Írd be a NUMERIKUS ID-t (pl: "120420")
    5. Kattints "💾 Save Settings"
-   6. Ezután csak a HOZZÁD rendelt teendők jelennek meg!
-   7. Ha üresen hagyod → MINDEN teendő megjelenik
+   6. Ezután csak a HOZZÁD rendelt teendők jelennek meg (a kiválasztott termékből)!
+   7. Ha üresen hagyod → MINDEN teendő megjelenik (a kiválasztott termékből)
    ```
 
 ---
@@ -145,17 +169,27 @@ MINICRM_API_KEY=abc123xyz456
 
 #### 3. `/api/minicrm/get_todos` (POST)
 - Lekérdezi a kapcsolathoz tartozó teendőket
-- Opcionális szűrés felelős szerint
+- Opcionális szűrés termék és felelős szerint
 - Kérés:
   ```json
   {
     "business_id": 28260,
     "contact_name": "Juhász András",
-    "filter_user": "120420"  // Optional: NUMERIC UserId for filtering
+    "category_id": "23",      // Optional: CategoryId (Termék: ACS=23, PCS=41)
+    "filter_user": "120420"   // Optional: NUMERIC UserId for filtering
   }
   ```
+- `category_id` paraméter:
+  - **Opcionális**: Ha nincs megadva vagy `null`, minden termék projektjeit lekérdezi
+  - **Termék CategoryId**: 
+    - **"23"** = ACS termék projektjei
+    - **"41"** = PCS termék projektjei
+    - **""** vagy `null` = Minden termék
+  - Fontos ha egy cég több termékben is szerepel (pl: ACS + PCS)
+  - API hívás: `/Api/R3/Project?MainContactId={business_id}&CategoryId={category_id}`
+  
 - `filter_user` paraméter:
-  - **Opcionális**: Ha nincs megadva vagy üres string, minden teendő visszaadásra kerül
+  - **Opcionális**: Ha nincs megadva vagy üres string, minden teendő visszaadásra kerül (az adott termékből)
   - **NUMERIKUS User ID**: pl. "120420" - string formátumban!
   - ⚠️ A MiniCRM UserId mező NUMERIKUS, NEM név!
   - Példa: `"UserId": 120420` (MiniCRM todo JSON)
