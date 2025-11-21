@@ -1051,12 +1051,15 @@ def minicrm_find_contact():
 @requires_auth
 def minicrm_get_todos():
     """Get todos (tasks) for a contact from MiniCRM"""
+    print(f"MiniCRM get_todos endpoint called")
+    
     if not MINICRM_ENABLED:
         return jsonify({'error': 'MiniCRM integration not configured'}), 400
     
     try:
         data = request.json
         contact_id = data.get('contact_id')
+        print(f"Getting todos for contact ID: {contact_id}")
         
         if not contact_id:
             return jsonify({'error': 'Contact ID required'}), 400
