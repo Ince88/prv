@@ -1380,9 +1380,13 @@ def minicrm_daily_todos():
         
         # Step 2: Fetch todos from all projects (with parallel requests for speed)
         all_todos = []
+        todos_found_count = 0
+        todos_filtered_count = 0
         
         def fetch_todos_for_project(project):
             """Fetch todos for a single project"""
+            nonlocal todos_found_count, todos_filtered_count
+            
             project_id = project.get('Id')
             project_name = project.get('Name', 'Unknown')
             
@@ -1399,6 +1403,8 @@ def minicrm_daily_todos():
                     
                     project_todos = []
                     for todo in todos:
+                        todos_found_count += 1
+                        
                         deadline_str = todo.get('Deadline', '')
                         if not deadline_str:
                             continue
@@ -1414,6 +1420,7 @@ def minicrm_daily_todos():
                             
                             # Apply user filter
                             if filter_user and str(todo_user_id) != str(filter_user):
+                                todos_filtered_count += 1
                                 continue
                             
                             is_overdue = deadline_date < today
@@ -1452,7 +1459,10 @@ def minicrm_daily_todos():
         overdue_count = sum(1 for t in all_todos if t['is_overdue'])
         print(f"✅ RESULTS:")
         print(f"   - Projects checked: {len(all_projects)}")
-        print(f"   - Total todos: {len(all_todos)}")
+        print(f"   - Raw todos found: {todos_found_count}")
+        print(f"   - Filtered by user: {todos_filtered_count}")
+        print(f"   - Filtered by date: {todos_found_count - todos_filtered_count - len(all_todos)}")
+        print(f"   - Final todos: {len(all_todos)}")
         print(f"   - Overdue: {overdue_count}")
         print(f"   - Today: {len(all_todos) - overdue_count}")
         
