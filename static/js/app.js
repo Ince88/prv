@@ -3864,8 +3864,22 @@ function displayMiniCRMTodosPanel(todos, contact) {
                 <div style="background: rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 16px; margin-bottom: 12px; backdrop-filter: blur(10px);">
                     <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 12px;">
                         <div style="flex: 1;">
-                            <div style="font-weight: 600; font-size: 16px; margin-bottom: 6px;">
-                                ${todo.title}
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
+                                <div style="font-weight: 600; font-size: 16px;">
+                                    ${todo.title}
+                                </div>
+                                ${todo.project_name ? `
+                                    <span style="
+                                        background: rgba(255, 255, 255, 0.25);
+                                        padding: 4px 10px;
+                                        border-radius: 6px;
+                                        font-size: 12px;
+                                        font-weight: 600;
+                                        white-space: nowrap;
+                                    ">
+                                        🏢 ${todo.project_name}
+                                    </span>
+                                ` : ''}
                             </div>
                             ${todo.description ? `
                                 <div style="font-size: 13px; opacity: 0.9; margin-bottom: 8px;">
