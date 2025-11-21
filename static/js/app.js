@@ -91,6 +91,11 @@ KONTEXTUS: A PRV vállalati kiadványokat készít nagyvállalatoknak. Ez a cég
 // Migration for existing users - ensure all new fields exist
 let needsMigration = false;
 
+if (!promptSettings.miniCrmUserName) {
+    promptSettings.miniCrmUserName = promptSettings.userName || 'Czechner Ince';
+    needsMigration = true;
+}
+
 if (!promptSettings.companyResearchPrompt) {
     promptSettings.companyResearchPrompt = `Keress meg MINDEN elérhető adatot erről a magyar cégről: {{company_name}}{{website_info}}
 
