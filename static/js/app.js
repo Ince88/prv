@@ -3778,22 +3778,24 @@ async function loadMiniCRMTodos(email) {
         
         currentMiniCRMContact = contactData.contact;
         
-        // Get todos for this contact's business (which will include all projects)
-        // MiniCRM Structure: Contact → Business → Projects → Todos
-        const businessId = contactData.contact.business_id;
+        // Get todos for this contact's business(es)
+        // IMPORTANT: Same email may have MULTIPLE contacts with different BusinessIds!
+        // Example: Koch Emil appears in both PCS project (Business 24606) and ACS project (Business ???)
+        // We need to query ALL BusinessIds to get todos from all projects
+        const businessIds = contactData.contact.business_ids || [contactData.contact.business_id];
         
-        if (!businessId) {
-            console.log('No business_id found for contact - cannot fetch todos');
+        if (!businessIds || businessIds.length === 0) {
+            console.log('No business_id(s) found for contact - cannot fetch todos');
             return;
         }
         
-        console.log(`Fetching todos - Business ID: ${businessId}, Category: ${promptSettings.miniCrmCategoryId || 'All'}, User ID: ${promptSettings.miniCrmUserName || 'All'}`);
+        console.log(`Fetching todos - Business IDs: [${businessIds.join(', ')}], Category: ${promptSettings.miniCrmCategoryId || 'All'}, User ID: ${promptSettings.miniCrmUserName || 'All'}`);
         
         const todosResponse = await fetch('/api/minicrm/get_todos', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ 
-                business_id: businessId,
+                business_ids: businessIds,  // ← Send ALL BusinessIds!
                 contact_name: contactData.contact.name,
                 category_id: promptSettings.miniCrmCategoryId || null,  // Filter by Termék (Product/Category)
                 filter_user: promptSettings.miniCrmUserName || null  // Filter by assigned user

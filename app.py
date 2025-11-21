@@ -1014,44 +1014,39 @@ def minicrm_find_contact():
             print(f"Found {count} contacts")
             
             if results and count > 0:
-                # Get first contact from Results dictionary
-                contact_id = list(results.keys())[0]
-                contact = results[contact_id]
-                print(f"Found contact: {contact.get('Name')} (ID: {contact_id})")
-                print(f"Contact search data: {contact}")
+                # IMPORTANT: Multiple contacts with same email may exist!
+                # Each contact may be linked to different Business/Projects
+                # We need to collect ALL BusinessIds to query all projects
                 
-                # Get FULL contact details (search may return partial data)
-                # The Url field contains the full contact endpoint
-                contact_url = contact.get('Url')
-                if contact_url:
-                    print(f"Fetching full contact details from: {contact_url}")
-                    full_response = requests.get(contact_url, auth=auth, timeout=10)
-                    if full_response.status_code == 200:
-                        contact = full_response.json()
-                        print(f"Full contact data: {contact}")
-                    else:
-                        print(f"Warning: Could not fetch full contact (status {full_response.status_code})")
+                all_business_ids = []
+                primary_contact = None
                 
-                # Get project ID for todos
-                # Todos are assigned to PROJECTS, not contacts or businesses!
-                project_id = contact.get('ProjectId')
-                projects = contact.get('Projects')
-                business_id = contact.get('BusinessId')
-                company_name = contact.get('Company')
+                for contact_id, contact in results.items():
+                    print(f"Contact #{len(all_business_ids)+1}: {contact.get('Name')} (ID: {contact_id}, BusinessId: {contact.get('BusinessId')})")
+                    
+                    business_id = contact.get('BusinessId')
+                    if business_id:
+                        all_business_ids.append(business_id)
+                    
+                    # Use first contact as primary for display
+                    if not primary_contact:
+                        primary_contact = contact
                 
-                print(f"ProjectId: {project_id}, Projects: {projects}, BusinessId: {business_id}, Company: {company_name}")
+                print(f"Collected {len(all_business_ids)} unique Business IDs: {all_business_ids}")
+                
+                if not primary_contact:
+                    return jsonify({'found': False, 'message': 'No valid contact found'})
                 
                 return jsonify({
                     'found': True,
                     'contact': {
-                        'id': contact.get('Id'),
-                        'name': contact.get('Name'),
-                        'email': contact.get('Email'),
-                        'company': company_name,
-                        'phone': contact.get('Phone'),
-                        'business_id': business_id,
-                        'project_id': project_id,  # ← For project-based todos
-                        'projects': projects  # ← May contain list of projects
+                        'id': primary_contact.get('Id'),
+                        'name': primary_contact.get('Name'),
+                        'email': primary_contact.get('Email'),
+                        'company': primary_contact.get('Company'),
+                        'phone': primary_contact.get('Phone'),
+                        'business_ids': all_business_ids,  # ← ALL BusinessIds (plural)!
+                        'business_id': all_business_ids[0] if all_business_ids else None  # ← Keep for backwards compat
                     }
                 })
             else:
@@ -1084,61 +1079,75 @@ def minicrm_get_todos():
     try:
         data = request.json
         business_id = data.get('business_id')
+        business_ids = data.get('business_ids', [])  # NEW: Accept multiple BusinessIds!
         contact_name = data.get('contact_name', 'Unknown')
         category_id = data.get('category_id')  # Optional: filter by Termék (Product/Category)
         filter_user = data.get('filter_user')  # Optional: filter by assigned user
         
-        print(f"Getting todos for business ID: {business_id} (Contact: {contact_name}, Category: {category_id or 'All'}, Filter User: {filter_user or 'All'})")
+        # Support both single business_id and multiple business_ids
+        if not business_ids and business_id:
+            business_ids = [business_id]
         
-        if not business_id:
-            return jsonify({'error': 'Business ID required to find projects and todos'}), 400
+        if not business_ids:
+            return jsonify({'error': 'Business ID(s) required to find projects and todos'}), 400
+        
+        print(f"Getting todos for {len(business_ids)} Business ID(s): {business_ids} (Contact: {contact_name}, Category: {category_id or 'All'}, Filter User: {filter_user or 'All'})")
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
-        # Step 1: Get all Projects for this Business
+        # Step 1: Get all Projects for ALL Business IDs
         # MiniCRM structure: Contact → Business → Projects → ToDoList
-        # Optional: Filter by CategoryId (Termék: ACS=23, PCS=41)
+        # Multiple contacts with same email = multiple BusinessIds to check!
         projects_url = f"https://r3.minicrm.hu/Api/R3/Project"
-        projects_params = {'MainContactId': business_id}
         
-        # Add CategoryId filter if specified (to get only ACS or PCS projects)
-        if category_id:
-            projects_params['CategoryId'] = category_id
-            print(f"Getting projects for business: {projects_url}?MainContactId={business_id}&CategoryId={category_id}")
-        else:
-            print(f"Getting projects for business: {projects_url}?MainContactId={business_id} (all categories)")
-        projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=10)
+        all_projects_results = {}
         
-        print(f"Projects response status: {projects_response.status_code}")
-        print(f"Projects response content (first 500 chars): {projects_response.text[:500]}")
+        for business_id in business_ids:
+            projects_params = {'MainContactId': business_id}
+            
+            # Add CategoryId filter if specified (to get only ACS or PCS projects)
+            if category_id:
+                projects_params['CategoryId'] = category_id
+                print(f"Getting projects for business {business_id}: {projects_url}?MainContactId={business_id}&CategoryId={category_id}")
+            else:
+                print(f"Getting projects for business {business_id}: {projects_url}?MainContactId={business_id} (all categories)")
+            
+            try:
+                projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=10)
+                
+                print(f"Projects response status for Business {business_id}: {projects_response.status_code}")
+                
+                if projects_response.status_code == 200:
+                    projects_data = projects_response.json()
+                    projects_results = projects_data.get('Results', {})
+                    projects_count = projects_data.get('Count', 0)
+                    
+                    print(f"Found {projects_count} projects for business {business_id}")
+                    
+                    # Merge projects from this business into all_projects_results
+                    if isinstance(projects_results, dict):
+                        all_projects_results.update(projects_results)
+                    
+                    # Debug: Log each project
+                    for project_id_str, project_info in projects_results.items():
+                        print(f"  Project: {project_info.get('Name')} (ID: {project_info.get('Id')}, CategoryId: {project_info.get('CategoryId', 'N/A')}, BusinessId: {business_id})")
+                else:
+                    print(f"Failed to get projects for business {business_id}: {projects_response.status_code}")
+            except Exception as e:
+                print(f"Error getting projects for business {business_id}: {str(e)}")
+                continue
         
-        # Debug: Log FULL projects response to see all CategoryIds
-        if projects_response.status_code == 200:
-            print(f"FULL Projects response: {projects_response.text}")
+        total_projects = len(all_projects_results)
+        print(f"Total projects found across {len(business_ids)} Business ID(s): {total_projects}")
         
-        if projects_response.status_code != 200:
-            error_msg = f"Failed to get projects: {projects_response.status_code} - {projects_response.text[:200]}"
-            print(error_msg)
-            return jsonify({'error': error_msg, 'success': False, 'todos': []}), 200
-        
-        projects_data = projects_response.json()
-        projects_results = projects_data.get('Results', {})
-        projects_count = projects_data.get('Count', 0)
-        
-        print(f"Found {projects_count} projects for this business")
-        
-        if projects_count == 0:
-            print("No projects found for this business")
+        if total_projects == 0:
+            print("No projects found for any business")
             return jsonify({'success': True, 'todos': [], 'message': 'No projects found'})
         
         # Step 2: Get todos from all projects
         all_todos = []
         
-        # Debug: Log each project with CategoryId
-        for project_id_str, project_info in projects_results.items():
-            print(f"Project found: {project_info.get('Name')} (ID: {project_info.get('Id')}, CategoryId: {project_info.get('CategoryId', 'N/A')})")
-        
-        for project_id_str, project_info in projects_results.items():
+        for project_id_str, project_info in all_projects_results.items():
             project_id = project_info.get('Id')
             project_name = project_info.get('Name')
             
