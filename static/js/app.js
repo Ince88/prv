@@ -3750,8 +3750,9 @@ async function sendBulkEmails() {
 // ============================================
 
 let currentMiniCRMContact = null;
+let showClosedTodos = false;  // Toggle for showing closed/completed todos
 
-async function loadMiniCRMTodos(email) {
+async function loadMiniCRMTodos(email, includeClosedTodos = false) {
     try {
         // Check if MiniCRM is enabled
         const statusResponse = await fetch('/api/minicrm/status');
@@ -3798,7 +3799,8 @@ async function loadMiniCRMTodos(email) {
                 business_ids: businessIds,  // ← Send ALL BusinessIds!
                 contact_name: contactData.contact.name,
                 category_id: promptSettings.miniCrmCategoryId || null,  // Filter by Termék (Product/Category)
-                filter_user: promptSettings.miniCrmUserName || null  // Filter by assigned user
+                filter_user: promptSettings.miniCrmUserName || null,  // Filter by assigned user
+                include_closed: includeClosedTodos  // Include completed/closed todos
             })
         });
         
@@ -3844,29 +3846,45 @@ function displayMiniCRMTodosPanel(todos, contact) {
                     ${contact.name} ${contact.company ? `(${contact.company})` : ''}
                 </div>
             </div>
-            <button onclick="closeMiniCRMPanel()" style="
-                background: rgba(255, 255, 255, 0.2);
-                border: none;
-                color: white;
-                font-size: 24px;
-                cursor: pointer;
-                border-radius: 8px;
-                width: 36px;
-                height: 36px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            ">×</button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button onclick="toggleClosedTodos()" style="
+                    background: rgba(255, 255, 255, ${showClosedTodos ? '0.3' : '0.15'});
+                    border: ${showClosedTodos ? '2px solid rgba(255, 255, 255, 0.6)' : '2px solid rgba(255, 255, 255, 0.3)'};
+                    color: white;
+                    padding: 8px 14px;
+                    cursor: pointer;
+                    border-radius: 8px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    white-space: nowrap;
+                    transition: all 0.2s;
+                " title="${showClosedTodos ? 'Hide completed todos' : 'Show completed todos (history)'}">
+                    ${showClosedTodos ? '✓ Show All' : '📜 History'}
+                </button>
+                <button onclick="closeMiniCRMPanel()" style="
+                    background: rgba(255, 255, 255, 0.2);
+                    border: none;
+                    color: white;
+                    font-size: 24px;
+                    cursor: pointer;
+                    border-radius: 8px;
+                    width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                ">×</button>
+            </div>
         </div>
         
         <div style="background: rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; max-height: 400px; overflow-y: auto;">
             ${todos.map((todo, index) => `
-                <div style="background: rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 16px; margin-bottom: 12px; backdrop-filter: blur(10px);">
+                <div style="background: rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 16px; margin-bottom: 12px; backdrop-filter: blur(10px); ${todo.completed || todo.status === 'Closed' ? 'opacity: 0.6;' : ''}">
                     <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 12px;">
                         <div style="flex: 1;">
                             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
-                                <div style="font-weight: 600; font-size: 16px;">
-                                    ${todo.title}
+                                <div style="font-weight: 600; font-size: 16px; ${todo.completed || todo.status === 'Closed' ? 'text-decoration: line-through; opacity: 0.8;' : ''}">
+                                    ${todo.completed || todo.status === 'Closed' ? '✓ ' : ''}${todo.title}
                                 </div>
                                 ${todo.project_name ? `
                                     <span style="
@@ -3878,6 +3896,18 @@ function displayMiniCRMTodosPanel(todos, contact) {
                                         white-space: nowrap;
                                     ">
                                         🏢 ${todo.project_name}
+                                    </span>
+                                ` : ''}
+                                ${todo.completed || todo.status === 'Closed' ? `
+                                    <span style="
+                                        background: rgba(0, 0, 0, 0.3);
+                                        padding: 4px 8px;
+                                        border-radius: 6px;
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        white-space: nowrap;
+                                    ">
+                                        ✓ Closed
                                     </span>
                                 ` : ''}
                             </div>
@@ -3894,30 +3924,43 @@ function displayMiniCRMTodosPanel(todos, contact) {
                         </div>
                     </div>
                     
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="datetime-local" id="new-deadline-${todo.id}" value="${todo.deadline ? todo.deadline.replace(' ', 'T').slice(0, 16) : ''}" style="
-                            flex: 1;
-                            padding: 10px;
-                            border: none;
-                            border-radius: 8px;
-                            background: rgba(255, 255, 255, 0.9);
-                            color: #2c3e50;
-                            font-size: 14px;
-                        ">
-                        <button onclick="updateTodoDeadline(${todo.id})" style="
-                            padding: 10px 20px;
-                            background: #27ae60;
-                            color: white;
-                            border: none;
-                            border-radius: 8px;
-                            cursor: pointer;
-                            font-weight: 600;
-                            font-size: 14px;
-                            white-space: nowrap;
-                        ">
-                            💾 Mentés
-                        </button>
-                    </div>
+                    ${todo.completed || todo.status === 'Closed' ? `
+                        <div style="padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; text-align: center; font-size: 13px; opacity: 0.8;">
+                            ✓ Todo completed - editing disabled
+                        </div>
+                    ` : `
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <input type="date" id="new-deadline-date-${todo.id}" value="${todo.deadline ? todo.deadline.split(' ')[0] : ''}" placeholder="Date" style="
+                                padding: 10px;
+                                border: none;
+                                border-radius: 8px;
+                                background: rgba(255, 255, 255, 0.9);
+                                color: #2c3e50;
+                                font-size: 14px;
+                            " required>
+                            <input type="time" id="new-deadline-time-${todo.id}" value="${todo.deadline && todo.deadline.includes(' ') ? todo.deadline.split(' ')[1].slice(0, 5) : ''}" placeholder="Time (optional)" style="
+                                padding: 10px;
+                                border: none;
+                                border-radius: 8px;
+                                background: rgba(255, 255, 255, 0.9);
+                                color: #2c3e50;
+                                font-size: 14px;
+                            ">
+                            <button onclick="updateTodoDeadline(${todo.id})" style="
+                                padding: 10px 20px;
+                                background: #27ae60;
+                                color: white;
+                                border: none;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-weight: 600;
+                                font-size: 14px;
+                                white-space: nowrap;
+                            ">
+                                💾 Mentés
+                            </button>
+                        </div>
+                    `}
                 </div>
             `).join('')}
         </div>
@@ -3931,6 +3974,17 @@ function displayMiniCRMTodosPanel(todos, contact) {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
+function toggleClosedTodos() {
+    // Toggle the state
+    showClosedTodos = !showClosedTodos;
+    
+    // Reload todos with new setting
+    if (currentEmailAddress) {
+        showToast(showClosedTodos ? '📜 Loading all todos (including closed)...' : '📋 Loading active todos only...', 'info');
+        loadMiniCRMTodos(currentEmailAddress, showClosedTodos);
+    }
+}
+
 function closeMiniCRMPanel() {
     const panel = document.getElementById('minicrm-todos-panel');
     if (panel) {
@@ -3939,16 +3993,22 @@ function closeMiniCRMPanel() {
 }
 
 async function updateTodoDeadline(todoId) {
-    const dateInput = document.getElementById(`new-deadline-${todoId}`);
-    const newDeadline = dateInput.value;
+    const dateInput = document.getElementById(`new-deadline-date-${todoId}`);
+    const timeInput = document.getElementById(`new-deadline-time-${todoId}`);
     
-    if (!newDeadline) {
-        showToast('❌ Kérlek válassz új határidőt!', 'error');
+    const dateValue = dateInput.value;
+    const timeValue = timeInput.value;
+    
+    if (!dateValue) {
+        showToast('❌ Kérlek válassz dátumot!', 'error');
         return;
     }
     
-    // Convert datetime-local format (2025-09-18T23:59) to MiniCRM format (2025-09-18 23:59:00)
-    const formattedDeadline = newDeadline.replace('T', ' ') + ':00';
+    // If time is not provided, default to 23:59:00 (end of day)
+    const time = timeValue || '23:59';
+    
+    // Format: YYYY-MM-DD HH:MM:SS
+    const formattedDeadline = `${dateValue} ${time}:00`;
     
     try {
         const response = await fetch('/api/minicrm/update_todo_deadline', {

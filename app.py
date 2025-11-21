@@ -1083,6 +1083,7 @@ def minicrm_get_todos():
         contact_name = data.get('contact_name', 'Unknown')
         category_id = data.get('category_id')  # Optional: filter by Termék (Product/Category)
         filter_user = data.get('filter_user')  # Optional: filter by assigned user
+        include_closed = data.get('include_closed', False)  # Optional: include closed/completed todos
         
         # Support both single business_id and multiple business_ids
         if not business_ids and business_id:
@@ -1091,7 +1092,7 @@ def minicrm_get_todos():
         if not business_ids:
             return jsonify({'error': 'Business ID(s) required to find projects and todos'}), 400
         
-        print(f"Getting todos for {len(business_ids)} Business ID(s): {business_ids} (Contact: {contact_name}, Category: {category_id or 'All'}, Filter User: {filter_user or 'All'})")
+        print(f"Getting todos for {len(business_ids)} Business ID(s): {business_ids} (Contact: {contact_name}, Category: {category_id or 'All'}, Filter User: {filter_user or 'All'}, Include Closed: {include_closed})")
         
         auth = (MINICRM_SYSTEM_ID, MINICRM_API_KEY)
         
@@ -1197,9 +1198,16 @@ def minicrm_get_todos():
             # Correct endpoint: /Api/R3/ToDoList/{project_id}
             # Status parameter: Open (only active todos), Closed (completed), or All (default)
             url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
-            todo_params = {'Status': 'Open'}  # Only fetch active/open todos
+            todo_params = {}
             
-            print(f"Making TODO request to: {url}?Status=Open")
+            # Determine which todos to fetch based on include_closed flag
+            if include_closed:
+                # Fetch ALL todos (Open + Closed) - don't specify Status param
+                print(f"Making TODO request to: {url} (All - Open + Closed)")
+            else:
+                # Fetch only Open/active todos
+                todo_params['Status'] = 'Open'
+                print(f"Making TODO request to: {url}?Status=Open (Active only)")
             
             try:
                 response = requests.get(url, auth=auth, params=todo_params, timeout=10)
