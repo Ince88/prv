@@ -1070,7 +1070,14 @@ def minicrm_get_todos():
         
         # Get todos for this contact
         params = {'ContactId': contact_id}
+        
+        print(f"Making TODO request to: {url}")
+        print(f"TODO params: {params}")
+        
         response = requests.get(url, auth=auth, params=params, timeout=10)
+        
+        print(f"TODO Response status: {response.status_code}")
+        print(f"TODO Response content: {response.text[:500]}")
         
         if response.status_code == 200:
             data = response.json()
