@@ -1410,7 +1410,7 @@ def minicrm_daily_todos():
         updated_since_date = datetime.now() - timedelta(days=lookback_days)
         updated_since_str = updated_since_date.strftime('%Y-%m-%d %H:%M:%S')
         
-        # Step 2: Get projects in the category that were updated recently
+        # Step 2: Get ALL projects in the category that were updated recently (with pagination)
         projects_url = f"https://r3.minicrm.hu/Api/R3/Project"
         projects_params = {
             'UpdatedSince': updated_since_str  # Only fetch recently updated projects
@@ -1420,16 +1420,44 @@ def minicrm_daily_todos():
         
         print(f"Fetching projects updated since {updated_since_str}: {projects_url}")
         print(f"Params: {projects_params}")
-        projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
         
-        if projects_response.status_code != 200:
-            print(f"Error fetching projects: {projects_response.status_code} - {projects_response.text}")
-            return jsonify({'error': f'Failed to fetch projects: {projects_response.status_code}'}), 500
+        # Fetch all pages (API returns max 100 per page)
+        all_projects = {}
+        page = 0
         
-        projects_data = projects_response.json()
-        projects_results = projects_data.get('Results', {})
+        while True:
+            projects_params['Page'] = page
+            print(f"Fetching page {page}...")
+            
+            projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=30)
+            
+            if projects_response.status_code != 200:
+                print(f"Error fetching projects page {page}: {projects_response.status_code} - {projects_response.text}")
+                break
+            
+            projects_data = projects_response.json()
+            projects_results = projects_data.get('Results', {})
+            
+            if not projects_results:
+                # No more results
+                break
+            
+            print(f"Page {page}: Found {len(projects_results)} projects")
+            all_projects.update(projects_results)
+            
+            # If we got less than 100, this is the last page
+            if len(projects_results) < 100:
+                break
+            
+            page += 1
+            
+            # Safety limit: max 10 pages (1000 projects)
+            if page >= 10:
+                print("⚠️ Warning: Reached 10 pages (1000 projects). Stopping pagination.")
+                break
         
-        print(f"Found {len(projects_results)} projects (updated in last {lookback_days} days)")
+        projects_results = all_projects
+        print(f"Total projects found across all pages: {len(projects_results)} (updated in last {lookback_days} days)")
         
         # Step 3: Get today's date for filtering
         today = date.today()
