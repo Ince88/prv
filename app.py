@@ -1477,9 +1477,18 @@ def minicrm_daily_todos():
         
         all_todos = []
         
+        print(f"\n{'='*60}")
+        print(f"Starting todo fetch from {len(projects_results)} projects...")
+        print(f"{'='*60}\n")
+        
         # Step 4: For each project, fetch todos
+        project_count = 0
         for project_id, project_info in projects_results.items():
+            project_count += 1
             project_name = project_info.get('Name', 'Unknown')
+            
+            if project_count <= 5 or project_count % 50 == 0:  # Log first 5 and every 50th
+                print(f"[{project_count}/{len(projects_results)}] Checking project: {project_name} (ID: {project_id})")
             
             # Fetch todos for this project (only Open status)
             todos_url = f"https://r3.minicrm.hu/Api/R3/ToDoList/{project_id}"
@@ -1496,6 +1505,9 @@ def minicrm_daily_todos():
                         todos_list = todos_data.get('Results', [])
                     else:
                         todos_list = todos_data
+                    
+                    if project_count <= 5:  # Log details for first 5 projects
+                        print(f"  → Found {len(todos_list) if isinstance(todos_list, list) else 'N/A'} todos")
                     
                     # Process each todo
                     for todo in todos_list:
