@@ -13,6 +13,7 @@ let promptSettings = JSON.parse(localStorage.getItem('promptSettings')) || {
     userName: 'Czechner Ince',
     userEmail: 'ince@prv.hu',
     miniCrmUserName: '',  // MiniCRM numeric UserId for filtering todos (e.g., "120420")
+    miniCrmCategoryId: '23',  // MiniCRM Termék CategoryId: ACS=23, PCS=41
     roleAndGoal: `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
 
 Your primary goal:
@@ -94,6 +95,12 @@ let needsMigration = false;
 if (promptSettings.miniCrmUserName === undefined) {
     // Default to empty (show all todos) - user needs to set their numeric ID
     promptSettings.miniCrmUserName = '';
+    needsMigration = true;
+}
+
+if (!promptSettings.miniCrmCategoryId) {
+    // Default to ACS (CategoryId: 23)
+    promptSettings.miniCrmCategoryId = '23';
     needsMigration = true;
 }
 
@@ -2829,6 +2836,31 @@ function openPromptSettingsModal() {
             </div>
         </div>
         
+        <!-- MiniCRM Termék (CategoryId) -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
+                📦 MiniCRM Termék (CategoryId):
+            </label>
+            <select id="prompt-minicrm-category" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 14px;
+                box-sizing: border-box;
+                background: white;
+                cursor: pointer;
+            ">
+                <option value="23" ${(promptSettings.miniCrmCategoryId || '23') === '23' ? 'selected' : ''}>ACS (CategoryId: 23)</option>
+                <option value="41" ${promptSettings.miniCrmCategoryId === '41' ? 'selected' : ''}>PCS (CategoryId: 41)</option>
+                <option value="" ${promptSettings.miniCrmCategoryId === '' ? 'selected' : ''}>Összes termék (nincs szűrés)</option>
+            </select>
+            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                Válaszd ki melyik termék (Product/Category) teendőit akarod látni. Ez szűri hogy mely projektek kerüljenek lekérdezésre.<br>
+                <strong>ACS = 23</strong> | <strong>PCS = 41</strong> | <strong>Összes = minden termék</strong>
+            </div>
+        </div>
+        
         <!-- Role & Goal -->
         <div style="margin-bottom: 24px;">
             <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50;">
@@ -3102,6 +3134,7 @@ function savePromptSettingsFromModal() {
     promptSettings.userName = document.getElementById('prompt-user-name').value.trim();
     promptSettings.userEmail = document.getElementById('prompt-user-email').value.trim();
     promptSettings.miniCrmUserName = document.getElementById('prompt-minicrm-user').value.trim();
+    promptSettings.miniCrmCategoryId = document.getElementById('prompt-minicrm-category').value;
     promptSettings.roleAndGoal = document.getElementById('prompt-role-goal').value.trim();
     promptSettings.businessModel = document.getElementById('prompt-business-model').value.trim();
     promptSettings.toneAndStyle = document.getElementById('prompt-tone-style').value.trim();
@@ -3124,6 +3157,7 @@ function resetPromptSettings() {
             userName: 'Czechner Ince',
             userEmail: 'ince@prv.hu',
             miniCrmUserName: '',  // Empty = show all todos
+            miniCrmCategoryId: '23',  // Default to ACS
             roleAndGoal: `You are an email assistant for PRV. You answer business emails on behalf of PRV team members.
 
 Your primary goal:
@@ -3753,7 +3787,7 @@ async function loadMiniCRMTodos(email) {
             return;
         }
         
-        console.log(`Fetching todos for Business ID: ${businessId}, Filter by User ID: ${promptSettings.miniCrmUserName || 'All (no filter)'}`);
+        console.log(`Fetching todos - Business ID: ${businessId}, Category: ${promptSettings.miniCrmCategoryId || 'All'}, User ID: ${promptSettings.miniCrmUserName || 'All'}`);
         
         const todosResponse = await fetch('/api/minicrm/get_todos', {
             method: 'POST',
@@ -3761,6 +3795,7 @@ async function loadMiniCRMTodos(email) {
             body: JSON.stringify({ 
                 business_id: businessId,
                 contact_name: contactData.contact.name,
+                category_id: promptSettings.miniCrmCategoryId || null,  // Filter by Termék (Product/Category)
                 filter_user: promptSettings.miniCrmUserName || null  // Filter by assigned user
             })
         });

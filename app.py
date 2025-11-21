@@ -1085,9 +1085,10 @@ def minicrm_get_todos():
         data = request.json
         business_id = data.get('business_id')
         contact_name = data.get('contact_name', 'Unknown')
+        category_id = data.get('category_id')  # Optional: filter by Termék (Product/Category)
         filter_user = data.get('filter_user')  # Optional: filter by assigned user
         
-        print(f"Getting todos for business ID: {business_id} (Contact: {contact_name}, Filter User: {filter_user or 'All'})")
+        print(f"Getting todos for business ID: {business_id} (Contact: {contact_name}, Category: {category_id or 'All'}, Filter User: {filter_user or 'All'})")
         
         if not business_id:
             return jsonify({'error': 'Business ID required to find projects and todos'}), 400
@@ -1096,10 +1097,16 @@ def minicrm_get_todos():
         
         # Step 1: Get all Projects for this Business
         # MiniCRM structure: Contact → Business → Projects → ToDoList
+        # Optional: Filter by CategoryId (Termék: ACS=23, PCS=41)
         projects_url = f"https://r3.minicrm.hu/Api/R3/Project"
         projects_params = {'MainContactId': business_id}
         
-        print(f"Getting projects for business: {projects_url}?MainContactId={business_id}")
+        # Add CategoryId filter if specified (to get only ACS or PCS projects)
+        if category_id:
+            projects_params['CategoryId'] = category_id
+            print(f"Getting projects for business: {projects_url}?MainContactId={business_id}&CategoryId={category_id}")
+        else:
+            print(f"Getting projects for business: {projects_url}?MainContactId={business_id} (all categories)")
         projects_response = requests.get(projects_url, auth=auth, params=projects_params, timeout=10)
         
         print(f"Projects response status: {projects_response.status_code}")
